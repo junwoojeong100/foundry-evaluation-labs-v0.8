@@ -7,7 +7,7 @@
 #           REVIEW_ROW_ID and REVIEW_REASON (the row and reason you recorded in step 6).
 # The red-team stage sends harmful prompts; run it only if your organization approved red teaming.
 #
-# The baseline is collected again, so the step-6 review is recorded on the same row ID of this run.
+# The baseline is collected again; copied review context is marked automation, not fresh human review.
 set -euo pipefail
 
 request_tokens() {
@@ -39,7 +39,7 @@ case "${1:-}" in
     python scripts/workshop.py compare --labels baseline
     wait_for_telemetry baseline
     python scripts/workshop.py summary --labels baseline
-    python scripts/workshop.py feedback --label baseline --row-id "$REVIEW_ROW_ID" --reason "$REVIEW_REASON"
+    python scripts/workshop.py feedback --label baseline --row-id "$REVIEW_ROW_ID" --reason "$REVIEW_REASON" --reviewer automation
     ;;
   candidate)
     request_tokens

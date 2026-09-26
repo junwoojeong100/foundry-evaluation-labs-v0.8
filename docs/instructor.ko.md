@@ -191,12 +191,14 @@ Agent hosting과 SDK 패키지의 GA/preview 상태는 서로 다를 수 있으�
 |---|---|---|---|
 | 실행자: 리소스·모델 카탈로그·할당량 조회 | Reader | `.env`의 `AZURE_SUBSCRIPTION_ID` 구독(하위 `AZURE_RESOURCE_GROUP` 포함) | `preflight`와 각 `collect` 이전. 모델이 이미 배포돼 있어도 구독 범위의 지역 모델·사용량을 조회하므로 그룹 Reader만으로는 부족함. 실행자마다 확인하며 충분한 상속 권한은 중복 부여하지 않음 |
 | 실행자: 프로젝트·에이전트 작업 | Foundry User | `AZURE_AI_ACCOUNT_NAME` 아래 `AZURE_AI_PROJECT_NAME` 프로젝트 | 새 환경의 `user-foundry`; 추가 실행자는 사전 확인 |
+| 실행자: 레벨 2 코드 평가기 suite와 레벨 3 계정 평가 | Foundry User | 부모 Foundry 계정 `AZURE_AI_ACCOUNT_NAME` | 레벨 2 전에 [고급 평가 접근](#advanced-evaluation-access) 준비. 프로젝트 범위만으로는 부족함 |
 | 실행자: 모델 호출 | Cognitive Services OpenAI User | `AZURE_AI_ACCOUNT_NAME` Foundry 계정 | 새 환경의 `user-model`; 추가 실행자는 사전 확인 |
 | 실행자: Search 스키마 생성 | Search Service Contributor | `AZURE_SEARCH_NAME` Search 서비스 | 새 환경의 `user-search-service`; README 2-1 이전 |
 | 실행자: 정책 적재·검색 | Search Index Data Contributor | 같은 Search 서비스 | 새 환경의 `user-search-data`; README 2-1 이전 |
 | 모델 준비 담당자: 배포 생성·삭제 | Cognitive Services OpenAI Contributor | 같은 Foundry 계정 | 보조·후보 모델 준비 이전. 공유 모델을 쓰는 참가자에게는 불필요 |
 | 관측하는 사용자 | Log Analytics Reader | 연결된 Application Insights와 Log Analytics workspace 각각 | 포털 Logs·`monitor` 이전 |
 | 프로젝트 managed identity | Log Analytics Reader | 같은 Application Insights와 workspace 각각 | 새 환경의 `project-monitor` 또는 기존 환경의 `prepare-trace-access` |
+| 프로젝트 managed identity: 예약 평가·judge | Foundry User | 프로젝트와 judge 배포가 있는 부모 Foundry 계정 | 레벨 3의 6절 전에 [예약 평가 접근](#scheduled-evaluation-access) 준비. 프로젝트 범위 Foundry User와 직접 OpenAI 접근만으로 대체하지 않음 |
 | Search managed identity | Cognitive Services User | planner 모델이 있는 Foundry 계정 | 공유 수업은 [리허설 전 공유 권한 준비](#shared-search-access)에서 한 번 준비하고 수업 종료까지 보존. 본인 전용 개인 실습은 README 2-1 `prepare-iq`에서 생성 가능 |
 | 에이전트 인스턴스 managed identity: 검색 | Search Index Data Reader | 실습 Search 서비스 | README 4-2 `grant-agent-access` |
 | 에이전트 인스턴스 managed identity: 모델 호출 | Cognitive Services OpenAI User | 세 후보 모델이 있는 Foundry 계정 | README 4-2 `grant-agent-access` |
@@ -611,7 +613,23 @@ cd foundry-evaluation-rehearsal-ko
 
 **레벨 3의 시작 전 확인에서 왔다면:** 환경 소유자와 아래 필요한 준비만 확인·완료한 뒤 [레벨 3의 1절](level-3.ko.md#generate-rubric)로 돌아간다. 리허설·정리 경로는 리허설을 진행하는 강사에게만 해당한다.
 
-가르칠 레벨([레벨 2](level-2.ko.md), [레벨 3](level-3.ko.md))만 리허설 clone의 README 9단계 뒤, 10단계 전에 리허설한다. 참가자는 자기 폴더에서 9단계와 10단계 사이에 진행한다. 팀이 시작하기 전에 trace 접근, judge·Sol 용량, 3절을 가르친다면 red team 승인, 정리 범위를 확인한다. 레벨 3의 4절은 참가자 권한으로 Foundry 계정의 평가 API를 호출하므로, 참가자에게 Foundry 계정 범위의 **Foundry User**가 필요하다. [전용 새 환경 생성](environment.ko.md)의 `user-foundry`가 만드는 프로젝트 범위 할당만으로는 부족하다.
+가르칠 레벨([레벨 2](level-2.ko.md), [레벨 3](level-3.ko.md))만 리허설 clone의 README 9단계 뒤, 10단계 전에 리허설한다. 참가자는 자기 폴더에서 9단계와 10단계 사이에 진행한다. 팀이 시작하기 전에 trace 접근, judge·Sol 용량, 3절을 가르친다면 red team 승인, 정리 범위를 확인한다. **레벨 3의 4절뿐 아니라 레벨 2 코드 평가기부터 계정 평가 API를 사용한다.** 참가자에게 Foundry 계정 범위의 **Foundry User**가 필요하며 [전용 새 환경 생성](environment.ko.md)의 `user-foundry`가 만드는 프로젝트 범위 할당만으로는 부족하다.
+
+<a id="advanced-evaluation-access"></a>
+
+**환경 소유자 — 레벨 2 시작 전:** 실행자의 Foundry User 역할이 프로젝트뿐 아니라 **부모 계정**에 있는지 확인한다. 프로젝트 역할만으로 레벨 1과 평가기 등록은 완료해도, 코드 평가기 suite에서는 `Microsoft.CognitiveServices/accounts/OpenAI/evals/write`의 `PermissionDenied`가 발생할 수 있다. 구독 Owner는 관리 권한이며 이 데이터 접근 역할을 대신하지 않는다.
+
+기존 기반 환경은 승인된 접근 관리자가 위 표의 계정 범위 역할을 부여한다. 이 가이드로 만든 전용 환경은 **원래 clone (`$REPO_ROOT`)**에서 원래 `RUN_DIR`·승인된 CLI 프로필을 유지하고 아래 선택 작업을 사용할 수 있다. `identity`에서 확인해 기록한 사용자 한 명에게만 부여하며 다른 참가자는 각자 할당이 필요하다.
+
+```bash
+python scripts/provision_environment.py user-evaluation --run-dir "$RUN_DIR"
+```
+
+**완료 확인:** `scope_resource: foundry`, Foundry User 역할 ID, `created: true` 또는 `already_assigned: true`가 나온다. 환경의 infrastructure 소유권 기록에 할당이 저장된다. 기본 레벨 1 준비의 Foundry User 범위는 여전히 프로젝트이다.
+
+**다르면:** 거부된 주체·범위를 확인하고 멈춘다. 에이전트에 Owner를 주거나 다른 계정으로 바꾸지 않는다. suite가 이미 실패했다면 `suite.json → runs → <label> → error`를 보존하고 역할 반영을 기다린 뒤 실패한 suite만 `--retry-failed`로 다시 실행한다. 응답 수집은 반복하지 않는다.
+
+[레벨 2의 1절](level-2.ko.md#register-evaluators)로 돌아가거나, trace 준비가 아직 안 됐다면 아래 준비만 이어 한다.
 
 **터미널 — 기존 기반 환경의 trace 접근 준비:** 공유 기반 환경의 모델 준비 폴더에서 한 번 실행한다. 성공한 뒤에는 리허설 폴더와 조별 폴더에서 반복하지 않는다. [전용 새 환경 생성](environment.ko.md) 경로로 만든 새 환경에는 이미 이 역할이 있다.
 
@@ -622,6 +640,24 @@ python scripts/workshop.py prepare-trace-access
 **완료 확인:** 오류 없이 끝나고 `Trace access is ready. This shared preparation is not recorded as team-owned, so team cleanup keeps it.`가 출력된다. `Log Analytics Reader is already assigned...` 또는 `Assigned Log Analytics Reader...`가 함께 나올 수 있다.
 
 **다르면:** 레벨 2·3 준비를 멈추고 환경 소유자가 보고된 managed identity, workspace, RBAC 문제를 해결한다. 해결 전에는 trace 평가를 시작하지 않는다.
+
+<a id="scheduled-evaluation-access"></a>
+
+**레벨 3의 6절 시작 전:** **프로젝트 managed identity**에 **부모 Foundry 계정 범위의 Foundry User**가 필요하다. [공식 최소 역할](https://learn.microsoft.com/azure/foundry/concepts/rbac-foundry#minimum-role-assignments-to-get-started)과 [hosted 에이전트 권한](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agent-permissions#azure-resource-setup)에 명시된 범위다. `Microsoft.CognitiveServices/accounts/AIServices/assets/read`와 `Microsoft.CognitiveServices/accounts/OpenAI/deployments/chat/completions/action`을 포함하는 Foundry 프로젝트의 자산·judge 추론 경로에 사용한다.
+
+실행 사용자나 hosted 에이전트 인스턴스와 혼동하지 않는다. **프로젝트 범위 Foundry User와 계정 범위 Cognitive Services OpenAI User만 주면 된다는 이전 안내는 불완전했다.** 후자는 직접 계정 OpenAI 접근용이지 부모 계정의 Foundry 역할을 대신하지 않는다. 프로젝트의 trace 조회 역할은 별도로 유지한다.
+
+기존 기반 환경은 접근 관리자가 프로젝트 identity에 이 계정 범위 Foundry User를 부여한다. 준비 도구로 만든 전용 환경은 `RUN_DIR`·승인된 CLI 프로필을 유지한 **원래 clone (`$REPO_ROOT`)**에서 실행한다.
+
+```bash
+python scripts/provision_environment.py project-evaluation --run-dir "$RUN_DIR"
+```
+
+**완료 확인:** `scope_resource: foundry`, Foundry User 역할, `principal_type: ServicePrincipal`, `created: true` 또는 `already_assigned: true`가 나온다. identity는 기록된 프로젝트에서 읽으며 임의 사용자·에이전트 ID를 입력하지 않는다. Owner를 부여하거나 기존 할당을 제거하는 명령이 아니다.
+
+**다르면:** 정확한 identity·범위 오류를 해결한다. `The project managed identity could not access the project` / `assets/read`이면 부모 계정 범위와 권한 반영을 확인한 뒤 같은 `continuous-eval`로 재개한다. 저장된 eval ID와 생성 오류를 보존하고 소유권을 지우거나 에이전트에 Owner를 주지 않는다. 준비를 마치면 [연속 평가](level-3.ko.md#continuous-eval)로 돌아간다.
+
+일정은 생겼지만 judge 행에 `chat/completions/action`의 `PermissionDenied`가 있으면 로그인한 사용자가 아니라 **프로젝트 identity의 부모 계정 범위 Foundry User**를 확인한다. 반영 뒤 같은 매시간 일정의 다음 run을 기다린다. 첫 실패를 성공으로 바꾸려고 일정을 다시 만들거나 첫 run을 덮어쓰지 않는다.
 
 레벨 3 red team을 가르치려면 유해 프롬프트 테스트에 대한 조직 승인을 먼저 받는다. 승인되지 않으면 레벨 3의 3절을 건너뛴다. 실습에는 합성 데이터만 쓰고 실제 직원 데이터는 연결하지 않는다.
 

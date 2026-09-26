@@ -431,6 +431,8 @@ python scripts/workshop.py retrieve --query "2026년 9월 국내 출장 숙박�
 2. 왼쪽 위 프로젝트 이름을 눌러 `.env`의 `AZURE_AI_PROJECT_NAME`(리소스 `AZURE_AI_ACCOUNT_NAME`)을 고릅니다.
 3. 위쪽 **Build** → 왼쪽 **Knowledge** → **Knowledge bases** → 내 KB(`LAB_PREFIX` + `-kb`)를 엽니다.
 
+처음 전환하면 새 포털에 들어가기 전에 **Select a project to continue**가 나올 수 있습니다. 프로젝트 이름과 **resource** 이름을 모두 대조하고 **Let's go**를 누릅니다. 계정 선택이 다시 나오면 같은 실습 계정을 고릅니다. CLI와 두 포털 경험의 로그인 세션은 별도이며, 환영 안내는 닫아도 됩니다. **API key authentication is disabled**는 keyless 구성의 정상 안내이므로 키를 켜거나 KB 설정을 바꿔 저장하지 않습니다.
+
 **완료 확인:** 아래쪽 **Knowledge sources**의 지식 소스(`LAB_PREFIX` + `-source`)가 **Active**이고 **Retrieval instructions**가 채워져 있습니다.
 
 **다르면:** [포털 화면 차이](docs/troubleshooting.ko.md#portal-differs)를 봅니다.
@@ -1468,6 +1470,7 @@ python scripts/workshop.py check-cleanup
 아래는 모두 선택 자료입니다. 10단계 실습은 여기서 끝납니다.
 
 - **결과와 한계:** [평가 방법과 개선 결과](docs/validation.ko.md)
+- **새 실제 리허설:** [Azure 검증 결과·복구한 실패·미검증 범위](docs/live-validation.ko.md)
 - **내 업무에 적용:** [평가 설계·데이터셋 카드·judge 검증·짝 비교·불확실성](docs/evaluation-design.ko.md)
 - **설계와 용어:** [Learning loop 배경](docs/reference.ko.md#background) · [용어 설명](docs/reference.ko.md#terms) · [설계·모델·공식 출처](docs/reference.ko.md)
 - **레벨 2·3:** [Foundry 사용자 지정 평가기와 인사이트](docs/level-2.ko.md) · [생성 rubric·스트레스 테스트·red team·에이전트 직접 호출·trace·연속 평가·릴리스 게이트](docs/level-3.ko.md)

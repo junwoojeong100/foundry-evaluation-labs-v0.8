@@ -235,7 +235,10 @@ class Provisioner:
             item["principalId"] == principal and item["roleDefinitionId"].endswith(role_id)
             for item in assignments
         ):
-            print(json.dumps({"scope_resource": resource_key, "role": role_id, "already_assigned": True}))
+            print(json.dumps({
+                "scope_resource": resource_key, "principal_type": principal_type,
+                "role": role_id, "already_assigned": True,
+            }))
             return
         name = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{scope}/{principal}/{role_id}"))
         assignment = self.az(
@@ -279,6 +282,31 @@ class Provisioner:
         self.save()
         print(json.dumps(report, indent=2))
 
+    def search_status(self):
+        self.guard()
+        recorded = "search" in self.state["resources"]
+        if recorded:
+            result = self.get("search")
+        else:
+            services = self.az("search", "service", "list", "--resource-group", self.config["resource_group"])
+            matches = [service for service in services if service["name"] == self.config["search"]]
+            if not matches:
+                print(json.dumps({"name": self.config["search"], "exists": False, "recorded": False}, indent=2))
+                return
+            if len(matches) != 1:
+                raise ValueError("Search lookup returned ambiguous resources; preserve the creation error.")
+            result = matches[0]
+        expected_id = self.group_id + f"/providers/Microsoft.Search/searchServices/{self.config['search']}"
+        if result.get("id", "").casefold() != expected_id.casefold():
+            raise ValueError("Search lookup returned a resource outside this run's expected scope.")
+        print(json.dumps({
+            "name": result["name"], "exists": True, "recorded": recorded,
+            "location": result["location"],
+            "provisioning_state": result["properties"].get("provisioningState"),
+            "status": result["properties"].get("status"),
+            "status_details": result["properties"].get("statusDetails"),
+        }, indent=2))
+
     def execute(self, operation: str, preserve_existing: bool = False):
         config = self.config
         tags = owned_tags(config["run_id"])
@@ -292,13 +320,7 @@ class Provisioner:
         elif operation == "model-capacity":
             self.model_capacity()
         elif operation == "search-status":
-            result = self.get("search")
-            print(json.dumps({
-                "name": result["name"], "location": result["location"],
-                "provisioning_state": result["properties"].get("provisioningState"),
-                "status": result["properties"].get("status"),
-                "status_details": result["properties"].get("statusDetails"),
-            }, indent=2))
+            self.search_status()
         elif operation == "wait-search":
             self.guard()
             self.wait_ready("search", self.get("search"))
@@ -335,18 +357,23 @@ class Provisioner:
                     "semanticSearch": "free", "knowledgeRetrieval": "free",
                 },
             })
-        elif operation in {"user-foundry", "user-model", "user-search-service", "user-search-data"}:
+        elif operation in {"user-foundry", "user-evaluation", "user-model", "user-search-service", "user-search-data"}:
             resource, role = {
                 "user-foundry": ("project", ROLE_FOUNDRY_USER),
+                "user-evaluation": ("foundry", ROLE_FOUNDRY_USER),
                 "user-model": ("foundry", ROLE_OPENAI_USER),
                 "user-search-service": ("search", ROLE_SEARCH_SERVICE),
                 "user-search-data": ("search", ROLE_SEARCH_DATA),
             }[operation]
             self.role(self.state["principal_id"], "User", resource, role)
-        elif operation == "project-monitor":
+        elif operation in {"project-monitor", "project-evaluation"}:
             principal = self.get("project")["identity"]["principalId"]
-            for key in ("insights", "logs"):
-                self.role(principal, "ServicePrincipal", key, ROLE_LOG_READER)
+            assignments = (
+                [("foundry", ROLE_FOUNDRY_USER)] if operation == "project-evaluation"
+                else [("insights", ROLE_LOG_READER), ("logs", ROLE_LOG_READER)]
+            )
+            for resource, role in assignments:
+                self.role(principal, "ServicePrincipal", resource, role)
         elif operation == "insights-connection":
             insights = self.get("insights")
             self.put("insights-connection", project_suffix + "/connections/workshop-insights", CONNECTION_API, {
@@ -401,7 +428,8 @@ class Provisioner:
 OPERATIONS = [
     "identity", "ownership", "group", "foundry", "project", "logs", "insights", "search",
     "user-foundry", "user-model", "user-search-service", "user-search-data",
-    "project-monitor", "insights-connection", "search-connection", "auxiliary", "ready",
+    "user-evaluation",
+    "project-monitor", "project-evaluation", "insights-connection", "search-connection", "auxiliary", "ready",
     "model-capacity", "search-status", "wait-search",
 ]
 

@@ -280,7 +280,11 @@ def eval_group_url(report_url: str | None) -> str | None:
     return report_url.split("/run/")[0] if report_url else None
 
 
-def tally(items: list[dict[str, Any]], expected: Any = ()) -> tuple[dict[str, dict[str, int]], int]:
+def tally(
+    items: list[dict[str, Any]], expected: Any = (), *, expected_rows: int | None = None,
+) -> tuple[dict[str, dict[str, int]], int]:
+    if expected_rows is not None and (type(expected_rows) is not int or expected_rows < 1):
+        raise ValueError("Expected evaluation rows must be a positive integer.")
     counts: dict[str, dict[str, int]] = {}
     errored = 0
     scored = 0
@@ -291,7 +295,7 @@ def tally(items: list[dict[str, Any]], expected: Any = ()) -> tuple[dict[str, di
             continue
         scored += 1
         for result in item.get("results") or []:
-            if result.get("status") == "error" or result.get("error"):
+            if result.get("status") == "error" or result.get("error") or (result.get("sample") or {}).get("error"):
                 errored += 1
                 errored_names.add(result.get("name"))
                 continue
@@ -302,9 +306,20 @@ def tally(items: list[dict[str, Any]], expected: Any = ()) -> tuple[dict[str, di
             count["passed"] += int(result["passed"])
     rows = len(items)
     if not errored and any(count["total"] != rows for count in counts.values()):
-        errored = sum(rows - count["total"] for count in counts.values())
+        errored = sum(abs(rows - count["total"]) for count in counts.values())
     # A completed run can lack one criterion on every row; count each of those rows as a failed result.
     errored += scored * len(set(expected) - set(counts) - errored_names)
+    if not errored and expected:
+        expected_names = set(expected)
+        for item in items:
+            names = [result.get("name") for result in item.get("results") or []]
+            if len(names) != len(expected_names) or set(names) != expected_names:
+                errored += 1
+    if expected_rows is not None:
+        errored += abs(expected_rows - rows)
+        item_ids = [item.get("id") for item in items]
+        if all(isinstance(item_id, str) and item_id for item_id in item_ids):
+            errored += len(item_ids) - len(set(item_ids))
     return counts, errored
 
 
@@ -368,17 +383,31 @@ def evaluate_suite(labels: list[str], timeout: int = 1800, retry_failed: bool = 
                     raise TimeoutError("The suite is still running. Re-run evaluate-suite with the same labels to resume.")
                 time.sleep(10)
                 current = client.evals.runs.retrieve(run["run_id"], eval_id=suite["eval_id"])
-                run.update({"status": current.status, "report_url": current.report_url})
+                details = current.model_dump(mode="json", warnings=False)
+                run.update({
+                    "status": current.status, "report_url": current.report_url,
+                    "error": details.get("error"), "result_counts": details.get("result_counts"),
+                })
                 write_json(suite_path, suite)
             if run["status"] != "completed":
-                raise ValueError(f"Suite run for {label} ended as {run['status']}. Re-run with --retry-failed.")
+                if "error" not in run:
+                    current = client.evals.runs.retrieve(run["run_id"], eval_id=suite["eval_id"])
+                    details = current.model_dump(mode="json", warnings=False)
+                    run.update({"error": details.get("error"), "result_counts": details.get("result_counts")})
+                    write_json(suite_path, suite)
+                error = run.get("error") or {}
+                reason = error.get("message") or error.get("code") or "No service error details were returned."
+                raise ValueError(
+                    f"Suite run for {label} ended as {run['status']}: {reason} "
+                    "Resolve the reported cause, then re-run with --retry-failed."
+                )
             if "counts" not in run:
                 output = [
                     item.model_dump(mode="json")
                     for item in client.evals.runs.output_items.list(run_id=run["run_id"], eval_id=suite["eval_id"])
                 ]
                 write_json(SUITE_DIR / f"{label}-output.json", output)
-                counts, errored = tally(output, suite["kinds"])
+                counts, errored = tally(output, suite["kinds"], expected_rows=len(items))
                 run["errored_results"] = errored
                 write_json(suite_path, suite)
                 if errored:
@@ -650,6 +679,12 @@ def continuous_signal() -> tuple[str, str, str]:
         return "not run", "level3/continuous.json", "no saved completed run with traces; run continuous-eval again to save it"
     latest = completed[-1]
     count = (latest.get("results") or {}).get("indirect_attack")
+    if latest.get("results_complete") is not True:
+        if count and count.get("failed", 0) > 0:
+            return "FAIL", "level3/continuous.json", "indirect_attack failed and other evaluator evidence is incomplete"
+        return "not run", "level3/continuous.json", (
+            "scheduled evaluator output is incomplete or not row-verified; run continuous-eval again to inspect it"
+        )
     if not count or not count.get("total"):
         return "not run", "level3/continuous.json", f"the {latest['created'][11:16]} UTC run has no indirect_attack result"
     status = "pass" if count["passed"] == count["total"] else "FAIL"
@@ -815,7 +850,7 @@ def generate_rubric(label: str = "improved", timeout: int = 1800) -> dict[str, A
         if "counts" not in record:
             output = [item.model_dump(mode="json") for item in client.evals.runs.output_items.list(run_id=record["run_id"], eval_id=record["eval_id"])]
             write_json(LEVEL3_DIR / "rubric-compare-output.json", output)
-            counts, errored = tally(output, ("policy_rubric", "generated_rubric"))
+            counts, errored = tally(output, ("policy_rubric", "generated_rubric"), expected_rows=len(items))
             if errored:
                 raise ValueError(f"{errored} rubric results failed; delete {path} and re-run generate-rubric.")
             record["counts"] = counts
@@ -904,7 +939,7 @@ def stress_test(model_key: str = "sol", count: int = 15, timeout: int = 1800) ->
                     },
                     "target": {"type": "azure_ai_model", "model": config.deployments[model_key]},
                     "input_messages": {"type": "template", "template": [{
-                        "type": "message", "role": "developer",
+                        "type": "message", "role": "system",
                         "content": {"type": "input_text", "text": load_prompt("v2", config.language)[0] + "\n\n" + policy_corpus()},
                     }]},
                 },
@@ -917,19 +952,31 @@ def stress_test(model_key: str = "sol", count: int = 15, timeout: int = 1800) ->
             # Own the generated dataset even for a failed run, so cleanup deletes it after a retry.
             if record["status"] in TERMINAL_RUN_STATES and "generated_datasets" not in record:
                 own_generated_dataset(client, record, state, path)
+        output_path = LEVEL3_DIR / f"stress-{model_key}-output.json"
         if "counts" not in record:
             output = [item.model_dump(mode="json") for item in client.evals.runs.output_items.list(run_id=record["run_id"], eval_id=record["eval_id"])]
-            write_json(LEVEL3_DIR / f"stress-{model_key}-output.json", output)
-            counts, errored = tally(output, ("intent_resolution", "relevance", "indirect_attack"))
-            if errored:
-                raise ValueError(f"{errored} stress-test results failed; delete {path} and re-run stress-test.")
-            record["counts"] = counts
-            record["failed_questions"] = [
-                {"query": (item.get("datasource_item") or {}).get("query", ""),
-                 "failed": [result["name"] for result in item.get("results") or [] if result.get("passed") is False]}
-                for item in output if any(result.get("passed") is False for result in item.get("results") or [])
-            ]
+            write_json(output_path, output)
+        else:
+            output = read_json(output_path)
+        counts, errored = tally(
+            output, ("intent_resolution", "relevance", "indirect_attack"), expected_rows=record["count"],
+        )
+        record.update({"observed_rows": len(output), "errored_results": errored, "coverage_complete": errored == 0})
+        if errored:
+            record.pop("counts", None)
             write_json(path, record)
+            raise ValueError(
+                f"{errored} stress-test results failed: received {len(output)} of {record['count']} requested rows. "
+                f"Preserve the output and inspect the service result; delete {path} only after reviewing "
+                "the cause and retry cost, then re-run stress-test."
+            )
+        record["counts"] = counts
+        record["failed_questions"] = [
+            {"query": (item.get("datasource_item") or {}).get("query", ""),
+             "failed": [result["name"] for result in item.get("results") or [] if result.get("passed") is False]}
+            for item in output if any(result.get("passed") is False for result in item.get("results") or [])
+        ]
+        write_json(path, record)
     print(f"Stress test completed on {model_key}: {len(record['failed_questions'])} of {count} synthetic questions failed an evaluator")
     for name, count_ in record["counts"].items():
         print(f"  {name}: {count_['passed']}/{count_['total']}")
@@ -1198,9 +1245,9 @@ def evaluate_agent(split: str = "dev", timeout: int = 2400, retry_failed: bool =
                 continue
             output = [item.model_dump(mode="json") for item in client.evals.runs.output_items.list(run_id=run["run_id"], eval_id=record["eval_id"])]
             write_json(LEVEL3_DIR / f"agent-{split}-{key}-output.json", output)
-            counts, errored = tally(output, ["business_contract", *(name for name, _ in LIVE_BUILTINS)])
-            if len(output) != run["rows"]:
-                errored += run["rows"] - len(output)
+            counts, errored = tally(
+                output, ["business_contract", *(name for name, _ in LIVE_BUILTINS)], expected_rows=run["rows"],
+            )
             run["errored_results"] = errored
             write_json(path, record)
             if errored:
@@ -1271,7 +1318,7 @@ def evaluate_traces(label: str = "improved", timeout: int = 1800) -> dict[str, A
             output = [item.model_dump(mode="json") for item in client.evals.runs.output_items.list(run_id=record["run_id"], eval_id=record["eval_id"])]
             write_json(LEVEL3_DIR / f"traces-{label}-output.json", output)
             missing = set(trace_ids) - {(item.get("datasource_item") or {}).get("trace_id") for item in output}
-            counts, errored = tally(output, [name for name, _ in TRACE_BUILTINS])
+            counts, errored = tally(output, [name for name, _ in TRACE_BUILTINS], expected_rows=len(trace_ids))
             if missing or errored:
                 raise ValueError(f"{len(missing)} of {len(trace_ids)} traces were not found and {errored} evaluator results failed. "
                                  f"Wait a few minutes for ingestion, then {retry[0].lower()}{retry[1:]}")
@@ -1302,6 +1349,45 @@ def continuous_schedule(config: RuntimeConfig, eval_id: str, version: str, now: 
             "trace_source": {"type": "agent_filter", "agent_name": config.agent_name, "agent_version": version, "max_traces": 20},
         }}),
     )
+
+
+def continuous_run_summary(run: Any, output: list[dict[str, Any]] | None) -> dict[str, Any]:
+    dumped = run.model_dump(mode="json", warnings=False)
+    traces = (dumped.get("result_counts") or {}).get("total") or 0
+    results = {}
+    for entry in dumped.get("per_testing_criteria_results") or []:
+        counts = {name: entry.get(name) or 0 for name in ("passed", "failed", "errored", "skipped")}
+        results[entry["testing_criteria"]] = {**counts, "total": sum(counts.values())}
+    invalid = None
+    complete = False
+    errors = {"run": dumped["error"]} if dumped.get("error") else {}
+    if output is not None:
+        expected = [name for name, _ in CONTINUOUS_BUILTINS]
+        if traces:
+            row_counts, invalid = tally(output, expected, expected_rows=traces)
+            matching = all(
+                name in results and name in row_counts
+                and not results[name]["errored"] and not results[name]["skipped"]
+                and results[name]["total"] == traces
+                and results[name]["passed"] == row_counts[name]["passed"]
+                and row_counts[name]["total"] == traces
+                for name in expected
+            )
+            invalid = invalid if matching else max(invalid, 1)
+            complete = run.status == "completed" and invalid == 0
+        else:
+            invalid = 1
+        for item in output:
+            for result in item.get("results") or []:
+                problem = result.get("error") or (result.get("sample") or {}).get("error")
+                if problem:
+                    errors.setdefault(result.get("name", "unknown"), problem)
+    return {
+        "run_id": dumped.get("id"), "created": datetime.fromtimestamp(run.created_at, timezone.utc).isoformat(),
+        "status": run.status, "traces": traces, "results": results,
+        "observed_rows": len(output) if output is not None else None,
+        "results_complete": complete, "invalid_results": invalid, "errors": errors,
+    }
 
 
 def continuous_eval(hours: int = 8) -> dict[str, Any]:
@@ -1340,23 +1426,33 @@ def continuous_eval(hours: int = 8) -> dict[str, Any]:
                            "first_run": (now + timedelta(minutes=2)).isoformat(), "ends": (now + timedelta(hours=hours)).isoformat()})
             write_json(path, record)
         runs = sorted(client.evals.runs.list(eval_id=record["eval_id"]), key=lambda run: run.created_at)
+        summaries = []
+        for run in runs:
+            output = None
+            if run.status == "completed":
+                output = [
+                    item.model_dump(mode="json", warnings=False)
+                    for item in client.evals.runs.output_items.list(run_id=run.id, eval_id=record["eval_id"])
+                ]
+                write_json(LEVEL3_DIR / f"continuous-{run.id}-output.json", output)
+            summaries.append(continuous_run_summary(run, output))
     print(f"Continuous evaluation {record['schedule_id']}: every hour on {config.agent_name} version {record['agent_version']}, "
           f"up to 20 recent traces, from {record['first_run'][11:16]} UTC until {record['ends'][11:16]} UTC.")
     if not runs:
         print(f"No scheduled run yet. Run this command again after {record['first_run'][11:16]} UTC.")
-    summaries = []
-    for run in runs:
-        dumped = run.model_dump(mode="json", warnings=False)
-        per_criterion = {entry["testing_criteria"]: {"passed": entry["passed"],
-                                                     "total": entry["passed"] + entry["failed"] + (entry.get("errored") or 0)}
-                         for entry in dumped.get("per_testing_criteria_results") or []}
-        results = ", ".join(f"{name} {count['passed']}/{count['total']}" for name, count in per_criterion.items())
-        created = datetime.fromtimestamp(run.created_at, timezone.utc)
-        traces = (dumped.get("result_counts") or {}).get("total", 0)
-        reason = results or (dumped.get("error") or {}).get("message") or "no results yet"
-        print(f"  {created.strftime('%H:%M')} UTC  {run.status}  {traces} traces: {reason}")
-        summaries.append({"run_id": dumped.get("id"), "created": created.isoformat(), "status": run.status,
-                          "traces": traces, "results": per_criterion})
+    for summary in summaries:
+        results = ", ".join(
+            f"{name} {count['passed']}/{count['total']}"
+            + (f" ({count['errored']} errors, {count['skipped']} skipped)" if count["errored"] or count["skipped"] else "")
+            for name, count in summary["results"].items()
+        )
+        status = summary["status"]
+        if status == "completed" and not summary["results_complete"]:
+            status += " (incomplete evaluator output)"
+        print(f"  {summary['created'][11:16]} UTC  {status}  {summary['traces']} traces: {results or 'no results yet'}")
+        for name, error in summary["errors"].items():
+            message = error.get("message") or error.get("code") or error if isinstance(error, dict) else error
+            print(f"    {name}: {message}")
     # Saved so the composite release gate can read the latest scheduled result without calling Foundry.
     if summaries != record.get("runs"):
         record["runs"] = summaries

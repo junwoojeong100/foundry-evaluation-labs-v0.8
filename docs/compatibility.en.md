@@ -4,6 +4,8 @@
 
 **Source review date: 2026-09-26.** “Current documentation was reviewed,” “offline checks passed,” and “a live Azure run completed” are different claims. This page separates them. It does not claim that this repository has been objectively ranked first among all GitHub repositories.
 
+For the new Azure deployment rehearsal and its verified versus unavailable surfaces, see [the live verification record](live-validation.en.md).
+
 ## Choose the right learning path
 
 | Path | What you do | Evidence you leave | Azure use |
@@ -36,6 +38,8 @@ The workshop intentionally preserves the runtime behind its recorded executions.
 
 On the review date, [PyPI lists `azure-ai-projects` 2.7.0](https://pypi.org/project/azure-ai-projects/2.7.0/) (published 2026-09-18). **2.3.0 is this workshop's frozen version, not the latest version.** Current Learn examples cannot all be pasted into this frozen environment.
 
+**The framework's support ceiling is a real constraint, not just a recommendation.** The pinned `agent-framework-foundry 1.11.0` requires `azure-ai-projects>=2.2.0,<2.4.0`. Even the [current framework 1.13.1](https://pypi.org/project/agent-framework-foundry/1.13.1/) declares `>=2.2.0,<2.7.0`, excluding SDK 2.7.0. Its newer OpenAI adapter accepts OpenAI 3, but that does not remove the Foundry SDK ceiling. SDK 2.6.1 is within the newer declared range; it is not a verified replacement for this workshop's complete stack.
+
 The [official SDK changelog](https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/ai/azure-ai-projects/CHANGELOG.md) documents relevant boundaries:
 
 | Change | Why an unreviewed upgrade is unsafe |
@@ -44,7 +48,7 @@ The [official SDK changelog](https://github.com/Azure/azure-sdk-for-python/blob/
 | 2.5: OpenAI dependency becomes `openai>=3.0.0`, using `httpx2` | Upgrading only the Foundry SDK can conflict with the frozen framework/client stack |
 | 2.7: beta data-generation option constructors change | A sample can import successfully yet have different runtime behavior |
 
-**A 2.7 migration is not claimed or silently performed here.** To migrate, create a separate environment, update the dependency set and affected calls together, preserve polling/resume/error/cleanup behavior, run offline checks, then rehearse both languages and any affected live levels with approval. Record new evidence separately. See [the maintenance procedure](maintaining.en.md#upgrades).
+**A 2.7 migration is not claimed or silently performed here.** Wait for a framework release that declares support before attempting that version. For a supported upgrade, create a separate environment, update the dependency set and affected calls together, preserve polling/resume/error/cleanup behavior, run offline checks, then rehearse both languages and affected live levels with approval. Record new evidence separately. See [the maintenance procedure](maintaining.en.md#upgrades).
 
 ## New Foundry versus classic
 

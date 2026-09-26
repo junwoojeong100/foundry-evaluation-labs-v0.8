@@ -4,7 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src" / "agent"), str(ROOT / "scripts")]
@@ -384,6 +384,25 @@ class EvaluationTests(unittest.TestCase):
 
 
 class SummaryTableTests(unittest.TestCase):
+    def test_automated_feedback_does_not_claim_a_human_review(self):
+        from experiments import feedback
+        trace = "a" * 32
+        manifest = {"split": "dev", "run_id": "baseline-run", "language": "en"}
+        row = {
+            "row_id": "baseline-sol-D01", "case_id": "D01", "trace_id": trace,
+            "agent_version": "1", "model_key": "sol", "prompt_hash": "prompt", "context_hash": "context",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch("experiments.REPO_ROOT", root), patch("experiments.FOUNDRY_DIR", root / ".foundry"), \
+                    patch("experiments.completed_rows", return_value=(manifest, [row])), \
+                    patch("experiments.read_json", return_value={"rows": [{"trace_id": trace}]}), \
+                    patch("experiments.dataset", return_value=[{"case_id": "D01"}]), patch("builtins.print"):
+                feedback("baseline", row["row_id"], "Copied context from the prior reviewed case.", "automation")
+            record = json.loads((root / ".foundry/datasets/regression-baseline-sol-D01.jsonl").read_text())
+        self.assertEqual(record["lineage"]["reviewer_type"], "automation")
+        self.assertEqual(record["lineage"]["source_trace_id"], trace)
+
     def test_show_prints_one_saved_row_beside_its_fixed_reference_without_new_calls(self):
         case = next(item for item in read_jsonl(ROOT / "data" / "dev.jsonl") if item["case_id"] == "D01")
         checks = {"decision": True, "required_numbers": True, "citations_retrieved": False,
@@ -649,6 +668,32 @@ class Level2Tests(unittest.TestCase):
         judge_down = [{"results": [{"name": "business_contract", "passed": True}, {"name": "relevance", "status": "error"}]}] * 3
         self.assertEqual(tally(judge_down, ["business_contract", "relevance"])[1], 3)
 
+    def test_tally_rejects_missing_extra_and_duplicate_output_rows(self):
+        from foundry_eval import tally
+        rows = [
+            {"id": str(index), "results": [{"name": "relevance", "passed": True}]}
+            for index in range(13)
+        ]
+        self.assertEqual(tally(rows, ["relevance"], expected_rows=15)[1], 2)
+        self.assertEqual(tally(rows, ["relevance"], expected_rows=12)[1], 1)
+        self.assertEqual(tally([], ["relevance"], expected_rows=15)[1], 15)
+        self.assertEqual(tally(rows + [rows[0]], ["relevance"], expected_rows=14)[1], 1)
+        self.assertEqual(tally(rows, ["relevance"], expected_rows=13)[1], 0)
+        for invalid in (0, -1, True, 1.5):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                tally(rows, expected_rows=invalid)
+
+    def test_tally_does_not_let_cross_row_duplicates_hide_missing_criteria(self):
+        from foundry_eval import tally
+        rows = [
+            {"id": "1", "results": [{"name": "a", "passed": True}, {"name": "a", "passed": True}]},
+            {"id": "2", "results": [{"name": "b", "passed": True}, {"name": "b", "passed": True}]},
+        ]
+        self.assertGreater(tally(rows, ["a", "b"], expected_rows=2)[1], 0)
+        rows[0]["results"].append({"name": "b", "passed": True})
+        rows[1]["results"].pop()
+        self.assertGreater(tally(rows, ["a", "b"], expected_rows=2)[1], 0)
+
     def test_insight_summary_lists_effects_and_clusters(self):
         from foundry_eval import insight_summary
         comparison = {"comparisons": [{
@@ -672,8 +717,12 @@ class Level2Tests(unittest.TestCase):
         criteria = [{"name": "business_contract"}]
         output = [SimpleNamespace(model_dump=lambda **_: {"results": [{"name": "business_contract", "passed": True}]})]
         created = []
+        service_error = {"code": "UserError", "message": "PermissionDenied: accounts/OpenAI/evals/write"}
         runs = SimpleNamespace(
             create=lambda **kwargs: created.append(kwargs) or SimpleNamespace(id="run-new", status="completed"),
+            retrieve=lambda *_args, **_kwargs: SimpleNamespace(
+                model_dump=lambda **_: {"error": service_error, "result_counts": {"total": 0}},
+            ),
             output_items=SimpleNamespace(list=lambda **_: output),
         )
         client = SimpleNamespace(evals=SimpleNamespace(runs=runs))
@@ -691,12 +740,17 @@ class Level2Tests(unittest.TestCase):
                     patch("foundry_eval.suite_items", return_value=({"run_id": "baseline-run"}, items)), \
                     patch("foundry_eval.suite_criteria", return_value=(criteria, {"business_contract": "code"})), \
                     patch("foundry_eval.project_client", return_value=nullcontext(project)), patch("builtins.print"):
-                with self.assertRaisesRegex(ValueError, "ended as failed. Re-run with --retry-failed"):
+                with self.assertRaisesRegex(ValueError, "ended as failed: PermissionDenied.*--retry-failed"):
                     evaluate_suite(["baseline"])
                 self.assertEqual(created, [])
+                saved = json.loads((suite_dir / "suite.json").read_text(encoding="utf-8"))
+                self.assertEqual(saved["runs"]["baseline"]["error"], service_error)
+                self.assertEqual(saved["runs"]["baseline"]["result_counts"], {"total": 0})
                 suite = evaluate_suite(["baseline"], retry_failed=True)
         self.assertEqual(len(created), 1)
-        self.assertEqual(suite["attempts"]["baseline"], [failed])
+        self.assertEqual(suite["attempts"]["baseline"], [
+            {**failed, "error": service_error, "result_counts": {"total": 0}},
+        ])
         self.assertEqual(suite["runs"]["baseline"]["run_id"], "run-new")
         self.assertEqual(suite["runs"]["baseline"]["counts"], {"business_contract": {"passed": 1, "total": 1}})
 
@@ -732,6 +786,39 @@ class Level2Tests(unittest.TestCase):
         self.assertEqual(suite["attempts"]["baseline"][0]["run_id"], "run-1")
         self.assertEqual((suite["runs"]["baseline"]["run_id"], suite["runs"]["baseline"]["counts"]),
                          ("run-2", {"business_contract": {"passed": 1, "total": 1}}))
+
+    def test_suite_polling_preserves_terminal_error_and_does_not_create_a_retry(self):
+        from contextlib import nullcontext
+        from types import SimpleNamespace
+        from foundry_eval import digest as suite_digest, evaluate_suite
+        items = [{"row_id": "r1"}]
+        criteria = [{"name": "business_contract"}]
+        error = {"code": "UserError", "message": "PermissionDenied", "inner_error": {"code": "MissingDataAction"}}
+        runs = Mock()
+        runs.retrieve.return_value = SimpleNamespace(
+            status="failed", report_url="https://example.test/report",
+            model_dump=lambda **_: {"error": error, "result_counts": {"total": 0}},
+        )
+        project = SimpleNamespace(get_openai_client=lambda: nullcontext(SimpleNamespace(evals=SimpleNamespace(runs=runs))))
+        with tempfile.TemporaryDirectory() as directory:
+            suite_dir = Path(directory)
+            (suite_dir / "suite.json").write_text(json.dumps({
+                "eval_id": "eval-1", "criteria_hash": suite_digest(criteria), "kinds": {"business_contract": "code"},
+                "runs": {"baseline": {"run_id": "run-1", "input_hash": suite_digest(items), "status": "queued"}},
+            }), encoding="utf-8")
+            with patch("foundry_eval.SUITE_DIR", suite_dir), \
+                    patch("foundry_eval.RuntimeConfig.from_env", return_value=SimpleNamespace(prefix="ll-test")), \
+                    patch("foundry_eval.load_state", return_value={}), patch("foundry_eval.required", return_value="judge"), \
+                    patch("foundry_eval.suite_items", return_value=({"run_id": "baseline-run"}, items)), \
+                    patch("foundry_eval.suite_criteria", return_value=(criteria, {"business_contract": "code"})), \
+                    patch("foundry_eval.project_client", return_value=nullcontext(project)), patch("foundry_eval.time.sleep"):
+                with self.assertRaisesRegex(ValueError, "PermissionDenied"):
+                    evaluate_suite(["baseline"])
+            saved = json.loads((suite_dir / "suite.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["runs"]["baseline"]["error"], error)
+        self.assertEqual(saved["runs"]["baseline"]["status"], "failed")
+        runs.create.assert_not_called()
+        runs.output_items.list.assert_not_called()
 
     def test_failed_cluster_insight_is_reported_and_regenerated(self):
         from contextlib import nullcontext
@@ -836,7 +923,8 @@ class Level2Tests(unittest.TestCase):
                         patch("foundry_eval.required", return_value="judge"), \
                         patch("foundry_eval.owned_evaluator",
                               return_value={"name": "ll-test-policy-rubric", "version": "1"}), \
-                        patch("foundry_eval.suite_items", return_value=({"run_id": "source-1"}, [])), \
+                        patch("foundry_eval.suite_items",
+                              return_value=({"run_id": "source-1"}, [{"row_id": "improved-sol-D01"}])), \
                         patch("foundry_eval.project_client", side_effect=lambda _: nullcontext(project)), \
                         patch("builtins.print") as printed:
                     result = generate_rubric("improved")
@@ -1253,6 +1341,7 @@ class Level2Tests(unittest.TestCase):
 
             continuous.write_text(json.dumps({"schedule_id": "ll-test-continuous", "runs": [
                 {"created": "2026-09-23T11:31:33+00:00", "status": "completed", "traces": 20,
+                 "results_complete": True,
                  "results": {"relevance": counts(19, 20), "indirect_attack": counts(20, 20)}},
                 {"created": "2026-09-23T12:31:33+00:00", "status": "failed", "traces": 0, "results": {}}]}), encoding="utf-8")
             code, lines = run(composite=True)
@@ -1338,10 +1427,22 @@ class Level2Tests(unittest.TestCase):
         from foundry_eval import continuous_eval
         dumped = {"id": "evalrun-1", "result_counts": {"total": 20}, "per_testing_criteria_results": [
             {"testing_criteria": "relevance", "passed": 19, "failed": 1},
+            {"testing_criteria": "task_adherence", "passed": 20, "failed": 0},
             {"testing_criteria": "indirect_attack", "passed": 20, "failed": 0, "errored": 0}]}
-        listed = [SimpleNamespace(created_at=1790163093, status="completed", report_url="https://ai.azure.com/nextgen/run-1",
+        listed = [SimpleNamespace(id="evalrun-1", created_at=1790163093, status="completed", report_url="https://ai.azure.com/nextgen/run-1",
                                   model_dump=lambda **_: dumped)]
-        client = SimpleNamespace(evals=SimpleNamespace(runs=SimpleNamespace(list=lambda **_: listed)))
+        output = [
+            {"id": str(index), "results": [
+                {"name": name, "passed": index > 0 or name != "relevance"}
+                for name in ("relevance", "task_adherence", "indirect_attack")
+            ]} for index in range(20)
+        ]
+        client = SimpleNamespace(evals=SimpleNamespace(runs=SimpleNamespace(
+            list=lambda **_: listed,
+            output_items=SimpleNamespace(list=lambda **_: [
+                SimpleNamespace(model_dump=lambda item=item, **__: item) for item in output
+            ]),
+        )))
         project = SimpleNamespace(get_openai_client=lambda: nullcontext(client))
         config = SimpleNamespace(prefix="ll-test", agent_name="frontier-loop-test")
         record = {"eval_id": "eval-1", "schedule_id": "ll-test-continuous", "agent_version": "2",
@@ -1354,11 +1455,76 @@ class Level2Tests(unittest.TestCase):
                     patch("foundry_eval.project_client", side_effect=lambda _: nullcontext(project)), patch("builtins.print") as printed:
                 continuous_eval()
             saved = json.loads((level3 / "continuous.json").read_text(encoding="utf-8"))
-        self.assertEqual(saved["runs"], [{"run_id": "evalrun-1", "created": "2026-09-23T11:31:33+00:00", "status": "completed",
-                                          "traces": 20, "results": {"relevance": {"passed": 19, "total": 20},
-                                                                    "indirect_attack": {"passed": 20, "total": 20}}}])
+            self.assertEqual(json.loads((level3 / "continuous-evalrun-1-output.json").read_text()), output)
+        self.assertEqual(len(saved["runs"]), 1)
+        summary = saved["runs"][0]
+        self.assertEqual((summary["run_id"], summary["created"], summary["status"], summary["traces"]),
+                         ("evalrun-1", "2026-09-23T11:31:33+00:00", "completed", 20))
+        self.assertEqual(summary["results"]["relevance"],
+                         {"passed": 19, "failed": 1, "errored": 0, "skipped": 0, "total": 20})
+        self.assertTrue(summary["results_complete"])
+        self.assertEqual(summary["invalid_results"], 0)
         self.assertEqual(printed.call_args_list[1].args[0],
-                         "  11:31 UTC  completed  20 traces: relevance 19/20, indirect_attack 20/20")
+                         "  11:31 UTC  completed  20 traces: relevance 19/20, task_adherence 20/20, indirect_attack 20/20")
+
+    def test_scheduled_judge_errors_block_even_when_the_service_overall_count_passes(self):
+        from types import SimpleNamespace
+        from foundry_eval import continuous_run_summary, continuous_signal
+        names = ("relevance", "task_adherence", "indirect_attack")
+        error = {"code": "FAILED_EXECUTION", "message": "PermissionDenied: chat/completions/action"}
+        dumped = {
+            "id": "run-1", "result_counts": {"total": 2, "passed": 2, "failed": 0, "errored": 0},
+            "per_testing_criteria_results": [
+                {"testing_criteria": name, "passed": 2 if name == "indirect_attack" else 0,
+                 "failed": 0, "errored": 0 if name == "indirect_attack" else 2}
+                for name in names
+            ],
+        }
+        output = [
+            {"id": str(index), "results": [
+                {"name": name, "passed": True, "status": "completed"} if name == "indirect_attack"
+                else {"name": name, "passed": None, "score": None, "status": "error", "sample": {"error": error}}
+                for name in names
+            ]} for index in range(2)
+        ]
+        run = SimpleNamespace(status="completed", created_at=1790163093, model_dump=lambda **_: dumped)
+        summary = continuous_run_summary(run, output)
+        self.assertFalse(summary["results_complete"])
+        self.assertEqual(summary["invalid_results"], 4)
+        self.assertEqual(summary["errors"], {"relevance": error, "task_adherence": error})
+        self.assertEqual(summary["results"]["relevance"]["errored"], 2)
+        with tempfile.TemporaryDirectory() as directory, patch("foundry_eval.LEVEL3_DIR", Path(directory)):
+            path = Path(directory) / "continuous.json"
+            path.write_text(json.dumps({"runs": [summary]}), encoding="utf-8")
+            self.assertEqual(continuous_signal()[0], "not run")
+            summary["results"]["indirect_attack"].update({"passed": 1, "failed": 1})
+            path.write_text(json.dumps({"runs": [summary]}), encoding="utf-8")
+            self.assertEqual(continuous_signal()[0], "FAIL")
+            summary.pop("results_complete")
+            summary["results"]["indirect_attack"].update({"passed": 2, "failed": 0})
+            path.write_text(json.dumps({"runs": [summary]}), encoding="utf-8")
+            self.assertEqual(continuous_signal()[0], "not run")
+
+    def test_scheduled_row_completeness_is_not_the_same_as_quality_pass_rate(self):
+        from types import SimpleNamespace
+        from foundry_eval import continuous_run_summary
+        names = ("relevance", "task_adherence", "indirect_attack")
+        dumped = {"id": "run-1", "result_counts": {"total": 2}, "per_testing_criteria_results": [
+            {"testing_criteria": name, "passed": 0 if name == "relevance" else 2,
+             "failed": 2 if name == "relevance" else 0} for name in names
+        ]}
+        run = SimpleNamespace(status="completed", created_at=1790163093, model_dump=lambda **_: dumped)
+        rows = [{"id": str(index), "results": [
+            {"name": name, "passed": name != "relevance"} for name in names
+        ]} for index in range(2)]
+        self.assertTrue(continuous_run_summary(run, rows)["results_complete"])
+        for invalid in ([], rows[:1], [rows[0], rows[0]]):
+            self.assertFalse(continuous_run_summary(run, invalid)["results_complete"])
+        malformed = copy.deepcopy(rows)
+        malformed[0]["results"][0]["name"] = "task_adherence"
+        malformed[1]["results"][1]["name"] = "relevance"
+        self.assertFalse(continuous_run_summary(run, malformed)["results_complete"])
+        self.assertFalse(continuous_run_summary(run, None)["results_complete"])
 
     def test_cleanup_plan_includes_owned_evaluators(self):
         state = {"owned_models": [], "owned_search_paths": [], "owned_roles": [],
@@ -1389,6 +1555,89 @@ class Level2Tests(unittest.TestCase):
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["generated_datasets"], [{"name": "dgj_abc123", "version": "1.0"}])
         self.assertEqual(state["owned_datasets"], [{"name": "dgj_abc123", "version": "1.0"}])
         self.assertEqual(save.call_count, 2)
+
+    def test_stress_test_checks_requested_coverage_including_cached_successes(self):
+        from contextlib import nullcontext
+        from types import SimpleNamespace
+        from foundry_eval import stress_test
+        criteria = ("intent_resolution", "relevance", "indirect_attack")
+        for observed in (0, 13, 15, 16):
+            for cached in (False, True):
+                with self.subTest(observed=observed, cached=cached), tempfile.TemporaryDirectory() as directory:
+                    level3 = Path(directory)
+                    output = [
+                        {"id": str(index), "datasource_item": {"query": "Synthetic policy question"},
+                         "results": [{"name": name, "passed": index != 0} for name in criteria]}
+                        for index in range(observed)
+                    ]
+                    record = {"eval_id": "eval-1", "run_id": "run-1", "status": "completed", "count": 15,
+                              "generated_datasets": []}
+                    if cached:
+                        record["counts"] = {name: {"passed": max(0, observed - 1), "total": observed} for name in criteria}
+                    path = level3 / "stress-sol.json"
+                    path.write_text(json.dumps(record), encoding="utf-8")
+                    output_path = level3 / "stress-sol-output.json"
+                    output_path.write_text(json.dumps(output), encoding="utf-8")
+                    original_output = output_path.read_bytes()
+                    runs = Mock()
+                    runs.output_items.list.return_value = [
+                        SimpleNamespace(model_dump=lambda item=item, **_: item) for item in output
+                    ]
+                    client = SimpleNamespace(evals=SimpleNamespace(runs=runs))
+                    project = SimpleNamespace(get_openai_client=lambda: nullcontext(client))
+                    with patch("foundry_eval.LEVEL3_DIR", level3), \
+                            patch("foundry_eval.RuntimeConfig.from_env", return_value=SimpleNamespace(prefix="ll-test")), \
+                            patch("foundry_eval.load_state", return_value={}), \
+                            patch("foundry_eval.required", return_value="judge"), \
+                            patch("foundry_eval.project_client", return_value=nullcontext(project)), patch("builtins.print"):
+                        if observed == 15:
+                            result = stress_test("sol", 15)
+                            self.assertTrue(result["coverage_complete"])
+                            self.assertEqual(len(result["failed_questions"]), 1)
+                            self.assertEqual(result["counts"]["relevance"], {"passed": 14, "total": 15})
+                        else:
+                            with self.assertRaisesRegex(ValueError, f"received {observed} of 15 requested rows"):
+                                stress_test("sol", 15)
+                    saved = json.loads(path.read_text(encoding="utf-8"))
+                    self.assertEqual(saved["observed_rows"], observed)
+                    self.assertEqual(saved["errored_results"], abs(15 - observed))
+                    self.assertEqual(saved["coverage_complete"], observed == 15)
+                    if observed != 15:
+                        self.assertNotIn("counts", saved)
+                    if cached:
+                        runs.output_items.list.assert_not_called()
+                        self.assertEqual(output_path.read_bytes(), original_output)
+                    runs.create.assert_not_called()
+
+    def test_synthetic_target_uses_the_documented_system_message_role(self):
+        from contextlib import nullcontext
+        from types import SimpleNamespace
+        from foundry_eval import stress_test
+        with tempfile.TemporaryDirectory() as directory:
+            level3 = Path(directory)
+            (level3 / "stress-sol.json").write_text(json.dumps({"eval_id": "eval-1"}), encoding="utf-8")
+            runs = Mock()
+            runs.create.return_value = SimpleNamespace(id="run-1", status="completed")
+            rows = [
+                {"id": str(index), "results": [
+                    {"name": name, "passed": True} for name in ("intent_resolution", "relevance", "indirect_attack")
+                ]}
+                for index in range(15)
+            ]
+            runs.output_items.list.return_value = [
+                SimpleNamespace(model_dump=lambda item=item, **_: item) for item in rows
+            ]
+            project = SimpleNamespace(get_openai_client=lambda: nullcontext(SimpleNamespace(evals=SimpleNamespace(runs=runs))))
+            config = SimpleNamespace(prefix="ll-test", language="en", deployments={"sol": "sol-deployment"})
+            with patch("foundry_eval.LEVEL3_DIR", level3), \
+                    patch("foundry_eval.RuntimeConfig.from_env", return_value=config), \
+                    patch("foundry_eval.load_state", return_value={}), patch("foundry_eval.required", return_value="judge"), \
+                    patch("foundry_eval.project_client", return_value=nullcontext(project)), \
+                    patch("foundry_eval.own_generated_dataset"), patch("builtins.print"):
+                stress_test("sol", 15)
+            data_source = runs.create.call_args.kwargs["data_source"]
+            self.assertEqual(data_source["item_generation_params"]["samples_count"], 15)
+            self.assertEqual([message["role"] for message in data_source["input_messages"]["template"]], ["system"])
 
 
 if __name__ == "__main__":

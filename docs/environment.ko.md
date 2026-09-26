@@ -355,6 +355,36 @@ python scripts/provision_environment.py search-status --run-dir "$RUN_DIR"
 
 </details>
 
+<a id="search-create-failure"></a>
+
+### Search 생성이 `FailedIdentityOperation` / HTTP 500으로 실패하면
+
+Identity 서비스 오류 때문에 managed identity를 제거하거나 key 인증을 켜거나 성공한 기반 서비스를 다시 만들지 않습니다. 오류와 correlation ID를 보존합니다. 잠시 기다린 뒤 승인된 CLI 프로필을 유지한 **원래 clone (`$REPO_ROOT`)**에서 정확한 자원을 조회합니다.
+
+```bash
+python scripts/provision_environment.py search-status --run-dir "$RUN_DIR"
+```
+
+**완료 확인:** 자원 생성이나 소유권 변경 없이 `exists`·`recorded`가 나옵니다.
+
+**다르면:** 조회·권한 오류는 자원이 없다는 증거가 아닙니다. 생성 재시도 전에 조회 오류부터 해결합니다.
+
+| 조회 결과 | 안전한 다음 행동 |
+|---|---|
+| `exists: false`, `recorded: false`이고 원래 생성 작업도 실패 | 아래에서 같은 run·이름으로 원래 `search` 명령만 다시 실행 |
+| `exists: true`, `recorded: true` | 위의 기존 `search-status` / `wait-search` 복구 사용. 재생성하지 않음 |
+| `exists: true`, `recorded: false` | 로컬 기록 없이 작업이 성공했을 수 있음. 소유권 확인을 위해 중단하고 상태 파일을 만들거나 자원을 덮어쓰지 않음 |
+
+**터미널 — 실패·부재가 확인된 경우에만:**
+
+```bash
+python scripts/provision_environment.py search --run-dir "$RUN_DIR"
+```
+
+**완료 확인:** `resource: search`, `state: Succeeded`입니다. [4단계](#setup-access)로 진행하며 원래 실패 기록은 보존합니다.
+
+**다르면:** 같은 identity 오류가 반복되면 Azure 지원을 위해 오류와 activity log의 correlation ID를 보관합니다. 생성은 접수됐고 대기만 만료됐다면 위의 기록된 자원 복구를 사용합니다. 반복 재시도하거나 identity 조건을 제거하지 않습니다.
+
 <a id="setup-access"></a>
 
 ## 4. 필요한 권한과 연결 준비
@@ -381,6 +411,35 @@ python scripts/provision_environment.py search-connection --run-dir "$RUN_DIR"
 **완료 확인:** 명령이 오류 없이 끝납니다. 모든 역할 출력에 `created: true` 또는 `already_assigned: true`가 있고, `scope_resource`는 내 사용자에 대해 `project`·`foundry`·`search`, 프로젝트 ID에 대해 `insights`·`logs`입니다. 연결 출력에는 `resource: insights-connection`과 `resource: search-connection`이 있습니다.
 
 **다르면:** 환경 소유자(혼자라면 본인)가 오류에 나온 주체와 범위를 확인한 뒤 [실패한 권한·연결 명령만 복구](troubleshooting.ko.md#setup-resume)합니다. `AuthorizationFailed`이면 로그인한 계정에 그 범위의 역할 부여 권한(구독 Owner 등)이 있는지 먼저 확인합니다. 넓은 Owner 권한이나 공유 연결 변경으로 우회하지 않습니다.
+
+<details>
+<summary>레벨 2·3까지 할 예정이라면 지금 identity 권한도 준비</summary>
+
+권한 전파와 캐시된 접근 판정 때문에 반영이 늦을 수 있습니다. 고급 평가를 처음 실행할 때 발견하지 않도록 **본 실습 전에** 선택 역할을 준비합니다. SDK를 바꾸거나 Owner를 부여하는 명령이 아닙니다.
+
+**레벨 2 또는 3 예정 — 원래 clone (`$REPO_ROOT`), 같은 `RUN_DIR`:**
+
+```bash
+python scripts/provision_environment.py user-evaluation --run-dir "$RUN_DIR"
+```
+
+**완료 확인:** 확인된 실행 사용자에게 `scope_resource: foundry`의 Foundry User가 있고 `created: true` 또는 `already_assigned: true`입니다.
+
+**다르면:** [계정 평가 접근](instructor.ko.md#advanced-evaluation-access)을 따릅니다. 프로젝트 범위 권한만으로 충분하다고 판단하지 않습니다.
+
+**레벨 3 연속 평가 예정일 때만 — 같은 원래 clone:**
+
+```bash
+python scripts/provision_environment.py project-evaluation --run-dir "$RUN_DIR"
+```
+
+**완료 확인:** 프로젝트 identity에 프로젝트뿐 아니라 **부모 Foundry 계정 범위의 Foundry User**가 있습니다. 충분한 기존 계정 범위 할당은 재사용하고 이전 할당은 제거하지 않습니다.
+
+**다르면:** [예약 평가 접근](instructor.ko.md#scheduled-evaluation-access)을 따릅니다. 할당 성공만으로 모든 백엔드의 접근 캐시 갱신을 증명하지 않으므로 뒤의 행별 검사에서도 실행 오류를 거부해야 합니다.
+
+레벨 1만 할 때는 이 선택 권한을 생략합니다. 아래 5단계로 계속하며 기본 증거를 마치기 전에 고급 평가로 바로 넘어가지 않습니다.
+
+</details>
 
 <a id="setup-auxiliary"></a>
 

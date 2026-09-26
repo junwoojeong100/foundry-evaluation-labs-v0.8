@@ -333,6 +333,64 @@ class DocumentationTests(unittest.TestCase):
             self.assertIn("python -m pip install -r requirements.lock.txt", text)
             self.assertNotIn("python -m pip install -r requirements.txt", text)
 
+    def test_level2_requires_account_evaluation_access_before_registering_evaluators(self):
+        for language in ("en", "ko"):
+            level2 = self.documents[ROOT / "docs" / f"level-2.{language}.md"]
+            introduction = level2.split('<a id="register-evaluators"></a>', 1)[0]
+            instructor = self.documents[ROOT / "docs" / f"instructor.{language}.md"]
+            with self.subTest(language=language):
+                self.assertIn("Foundry User", introduction)
+                self.assertIn(f"instructor.{language}.md#advanced-evaluation-access", introduction)
+                self.assertIn("Microsoft.CognitiveServices/accounts/OpenAI/evals/write", instructor)
+                self.assertIn(
+                    ("provision_environment", ["user-evaluation", "--run-dir", "$RUN_DIR"]),
+                    [(script, args) for _, script, args in commands(instructor)],
+                )
+                for field in ("suite.json", "result_counts", "error", "--retry-failed"):
+                    self.assertIn(field, level2)
+
+    def test_search_identity_failure_recovery_checks_state_before_retrying_only_search(self):
+        for language in ("en", "ko"):
+            environment = self.documents[ROOT / "docs" / f"environment.{language}.md"]
+            recovery = environment.split('<a id="search-create-failure"></a>', 1)[1].split('<a id="setup-access"></a>', 1)[0]
+            with self.subTest(language=language):
+                self.assertIn("FailedIdentityOperation", recovery)
+                for state in ("exists: false", "exists: true", "recorded: false", "recorded: true"):
+                    self.assertIn(state, recovery)
+                self.assertEqual(
+                    [(script, args) for _, script, args in commands(recovery)],
+                    [
+                        ("provision_environment", ["search-status", "--run-dir", "$RUN_DIR"]),
+                        ("provision_environment", ["search", "--run-dir", "$RUN_DIR"]),
+                    ],
+                )
+                self.assertIn("](#setup-access)", recovery)
+
+    def test_continuous_evaluation_names_the_project_identity_prerequisite(self):
+        for language in ("en", "ko"):
+            level3 = self.documents[ROOT / "docs" / f"level-3.{language}.md"]
+            section = level3.split('<a id="continuous-eval"></a>', 1)[1].split("```bash", 1)[0]
+            instructor = self.documents[ROOT / "docs" / f"instructor.{language}.md"]
+            with self.subTest(language=language):
+                self.assertIn("Foundry User", section)
+                self.assertIn("parent Foundry account" if language == "en" else "부모 Foundry 계정", section)
+                self.assertIn(f"instructor.{language}.md#scheduled-evaluation-access", section)
+                self.assertIn("Microsoft.CognitiveServices/accounts/AIServices/assets/read", instructor)
+                self.assertIn("Microsoft.CognitiveServices/accounts/OpenAI/deployments/chat/completions/action", instructor)
+                self.assertIn(
+                    ("provision_environment", ["project-evaluation", "--run-dir", "$RUN_DIR"]),
+                    [(script, args) for _, script, args in commands(instructor)],
+                )
+
+    def test_stress_checkpoint_requires_observed_rows_not_only_requested_count(self):
+        for language in ("en", "ko"):
+            level3 = self.documents[ROOT / "docs" / f"level-3.{language}.md"]
+            section = level3.split('<a id="stress-test"></a>', 1)[1].split('<a id="red-team"></a>', 1)[0]
+            with self.subTest(language=language):
+                for text in ("observed_rows: 15", "coverage_complete: true", "errored_results: 0",
+                             "received 13 of 15 requested rows", "`system`"):
+                    self.assertIn(text, section)
+
     def test_default_ci_has_no_cloud_credentials_and_keeps_live_ci_opt_in(self):
         import yaml
 
@@ -1426,14 +1484,15 @@ class DocumentationTests(unittest.TestCase):
         calls = [args for _, _, args in commands(f"```bash\n{baseline}\n```\n")]
         review = next(args for args in calls if args[0] == "feedback")
         self.assertLess(next(i for i, args in enumerate(calls) if args[0] == "collect"), calls.index(review))
-        self.assertNotIn("--reviewer", review)
+        self.assertEqual(review[review.index("--reviewer") + 1], "automation")
         reviewer = inspect.signature(feedback).parameters["reviewer"].default
         for name, language in (("README.md", "en"), ("README.ko.md", "ko")):
             text = self.documents[ROOT / "docs" / f"level-3.{language}.md"]
             boundary = text.split('<a id="ci-review-provenance"></a>', 1)[1].split("\n\n", 2)[1]
             with self.subTest(language=language):
-                for field in ("review_reason", "row_id", "trace_id", "feedback", "verify", reviewer):
+                for field in ("review_reason", "row_id", "trace_id", "verify", reviewer):
                     self.assertIn(f"`{field}`", boundary)
+                self.assertIn("`feedback --reviewer automation`", boundary)
                 for anchor in ("save-review", "finish"):
                     self.assertIn(f"../{name}#{anchor}", boundary)
 

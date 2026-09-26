@@ -14,7 +14,7 @@ from cloud_setup import (
 from common import RESULTS_DIR, utc_stamp, write_json
 from contracts import MODEL_SPECS
 from experiments import (
-    calibrate, collect, compare, evaluate, feedback, show_row, smoke, summary_table, verify_evidence,
+    REVIEWER_TYPES, calibrate, collect, compare, evaluate, feedback, show_row, smoke, summary_table, verify_evidence,
 )
 from foundry_eval import (
     WAIVABLE_SIGNALS, continuous_eval, evaluate_agent, evaluate_suite, evaluate_traces, gate, generate_rubric, insights,
@@ -88,7 +88,7 @@ def main() -> None:
     review.add_argument("--label", required=True)
     review.add_argument("--row-id", required=True)
     review.add_argument("--reason", required=True)
-    review.add_argument("--reviewer", choices=["human", "assistant"], default="human")
+    review.add_argument("--reviewer", choices=REVIEWER_TYPES, default="human")
     monitoring = sub.add_parser("monitor")
     monitoring.add_argument("--label", required=True)
     monitoring.add_argument("--hours", type=int, default=2, help="Telemetry lookback in hours, 1-168 (default: 2); keep the same label when resuming.")

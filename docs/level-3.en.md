@@ -78,17 +78,21 @@ Both rubrics passed all 18 V2 rows, including Sol's D02 wrong decision label tha
 
 ## 2. Stress-test V2 on synthetic questions
 
-**Terminal A:** Foundry generates 15 new travel-policy questions, sends each to the Sol deployment with the V2 instructions and all seven policies, and scores the answers:
+**Terminal A:** request 15 new travel-policy questions. Foundry sends the generated questions to the Sol deployment with the V2 instructions and all seven policies, and scores the answers. The synthetic target uses a `system` message, as required by the [current preview API](https://learn.microsoft.com/azure/foundry/observability/how-to/cloud-evaluation-synthetic-data):
 
 ```bash
 python scripts/workshop.py stress-test --model sol --count 15
 ```
 
-**Checkpoint:** `Stress test completed on sol: N of 15 synthetic questions failed an evaluator`, with one line each for `intent_resolution`, `relevance`, and `indirect_attack`. Failed questions appear only if there are failures; `N=0` is valid too.
+**Checkpoint:** `Stress test completed on sol: N of 15 synthetic questions failed an evaluator`, with one line each for `intent_resolution`, `relevance`, and `indirect_attack`, **each with denominator 15**. `stress-sol.json` records `observed_rows: 15`, `coverage_complete: true`, and `errored_results: 0`. Failed questions appear only if there are failures; `N=0` is valid too.
 
 **If not:** after the command exits with `The run is still in progress`, repeat it to resume. For other errors, see [Level 2 and 3 recovery](troubleshooting.en.md#levels). Keep the question count at 15.
 
+**Requested rows are not observed rows.** A real rehearsal returned only 13 rows for a 15-question request while Foundry marked the run `completed`. The command now rejects missing, extra, or duplicate output rows, including previously cached “successful” stress results. `received 13 of 15 requested rows` means incomplete coverage, not a 15-question pass. Preserve the generated output and service result; after reviewing the cause and cost, use [one archived retry](troubleshooting.en.md#level-state-recovery). A retry generates a separate experiment. Do not combine its rows with the earlier run or increase the count until a preferred score appears. If it remains short, report the section as incomplete.
+
 **Editor → Portal — inspect one failure if N is greater than 0:** open `src/agent/.foundry/results/level3/stress-sol.json`. In the first item of `failed_questions`, read the full `query` and the evaluator names in `failed`; the terminal shortens long questions. Open the printed `Portal:` link → the `<LAB_PREFIX>-stress-sol` run → that question's row in the results table. Read its actual response and the failed evaluator's explanation before assigning a cause. If N is 0, record `none` and skip this check.
+
+For SDK-file inspection, use `stress-sol-output.json`: the actual target answer is `datasource_item["sample.output_text"]`, also represented in `sample.output`. A generated `candidate_response` is **not** the target's answer or an expert-verified reference. Read each evaluator's `reason` beside the actual target output.
 
 **Checkpoint:** your note links the inspected question to an observed policy gap, judge issue, or safety flag, based on the response and explanation—not the question alone.
 
@@ -97,6 +101,7 @@ python scripts/workshop.py stress-test --model sol --count 15
 **Read it:**
 
 - **This is a model-level test.** Foundry gives Sol all seven policies directly; your agent and its retrieval are not used, so these numbers are not comparable with the main guide's steps 5–8.
+- **The built-in judges do not receive those seven policies.** They see the generated question and target answer. In the new English rehearsal, a judge called “Chicago is overseas” incorrect even though the supplied policy explicitly covers South Korea only. That inspected case is a judge-context limitation, not evidence that the agent should invent an overseas policy. Preserve the score and annotate the disagreement; do not assume every other failure has the same cause.
 - **Reuse the saved run.** Rerunning the command reuses its saved questions and run; do not delete result files for a better score. A separate new experiment can have different questions and counts, so do not compare it as the same run.
 - **Only note candidates for a future experiment.** Classify only the question you inspected; other failures remain unreviewed. **Do not edit this workshop's `dev` or `holdout` files.** Add new questions with reviewed, fixed references to `dev` only in a separate experiment after this report and cleanup. Never tune instructions on `holdout`.
 
@@ -267,6 +272,8 @@ The traces were eight hours old; the command sets the lookback window from your 
 
 ## 6. Turn on continuous evaluation
 
+**Prerequisite:** the project managed identity needs **Foundry User on the parent Foundry account** and its prepared trace-reading roles. A project-only role plus direct OpenAI access, or the runner's own roles, does not replace that Foundry account scope. If not prepared, have the owner complete [scheduled-evaluation access](instructor.en.md#scheduled-evaluation-access) and return here.
+
 **Terminal A — create the schedule:** it pins the agent version at creation and evaluates up to 20 of its recent traces every hour. The first run starts two minutes later, the schedule stops by itself after 8 hours, and step 10 deletes it. Repeating the command checks the existing schedule:
 
 ```bash
@@ -291,6 +298,8 @@ python scripts/workshop.py continuous-eval
 **If not:** for `in_progress` or `queued`, check again in a minute with the same command. For `failed`, an error, or zero traces, record the section as incomplete and check traffic and access with the instructor. Do not delete and recreate the schedule.
 
 <a id="continuous-expired"></a>
+
+**Completed is not enough:** the command now downloads each completed run's rows to `level3/continuous-<run_id>-output.json` and records `results_complete` and `invalid_results` in `continuous.json`. All three criteria must cover every trace with valid results. `completed (incomplete evaluator output)` or `20 errors` is an execution problem, not a valid 0/20 quality score. `sample.error` contains the underlying judge exception; the CLI prints it and the composite gate blocks incomplete evidence. After correcting permissions, wait for the next run of the **same hourly schedule**. Keep the failed run. Older summaries without row verification require one `continuous-eval` read to hydrate evidence, not a new schedule.
 
 **If resuming later:** open `src/agent/.foundry/results/level3/continuous.json` and compare `ends` with the current **UTC date and time**. Repeating the command does not restart an expired schedule. Check an already-started `queued`/`in_progress` run until it finishes. With neither an active run nor a completed result meeting the row-level checkpoint below, record **section 6 incomplete**, report the missing-result block in [section 7](#release-gate), then clean up. Do not manufacture completion through a new schedule or repeated lookups.
 
@@ -442,7 +451,7 @@ If `evaluate` succeeded and only `gate` had an installation/artifact-download er
 
 <a id="ci-review-provenance"></a>
 
-**Review boundary:** this is a **separate experiment**: the pipeline collects new baseline answers and copies your `review_reason` to the matching `row_id` using `feedback`'s default `human` marker. The same `row_id` does not mean the same answer or `trace_id`. That marker is **not proof of a fresh human review**, and `verify` checks this run's trace links, not whether the copied reason still describes its new answer. Keep your [original 6-3 review](../README.md#save-review) and [9-3 report](../README.md#finish); do not replace them with the CI artifact or claim it preserves the original reviewed response.
+**Review boundary:** this is a **separate experiment**: the pipeline collects new baseline answers and copies your `review_reason` to the matching `row_id` using `feedback --reviewer automation`, not `human`. The same `row_id` does not mean the same answer or `trace_id`. This is **not proof of a fresh human review**, and `verify` checks this run's trace links, not whether the copied reason still describes its new answer. Keep your [original 6-3 review](../README.md#save-review) and [9-3 report](../README.md#finish); do not replace them with the CI artifact or claim it preserves the original reviewed response.
 
 Each run registers custom evaluators under its own `LAB_PREFIX` and deletes them at the end. `continuous` is waived because a run cannot wait for the hourly schedule. Foundry also offers its own evaluation action ([Run evaluations in GitHub Actions](https://learn.microsoft.com/azure/foundry/how-to/evaluation-github-action)).
 

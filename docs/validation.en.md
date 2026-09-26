@@ -4,6 +4,8 @@
 
 **Beyond averages:** [paired regressions, dataset design, judge calibration, and small-sample uncertainty](evaluation-design.en.md). New `compare` output adds these diagnostics without rescoring or changing the recorded examples below.
 
+The separate [2026-09-26 live verification record](live-validation.en.md) covers a new bilingual deployment and the fixes found during it. It does not replace the September 23 cohort below, and it explicitly lists unverified or approval-dependent steps.
+
 **For steps 5–9, read your saved results first; use the recorded example run only as an example.** This page answers where your result files are, which rows failed, what the recorded run showed, and what it does not prove.
 
 **Read only what you need:**

@@ -355,6 +355,36 @@ python scripts/provision_environment.py search-status --run-dir "$RUN_DIR"
 
 </details>
 
+<a id="search-create-failure"></a>
+
+### If Search creation fails with `FailedIdentityOperation` / HTTP 500
+
+An identity-provider error is not a reason to disable managed identity, enable keys, or recreate successful foundation services. Preserve the error and its correlation ID. After a short wait, inspect the exact resource from the **original clone (`$REPO_ROOT`)**, keeping the authorized CLI profile:
+
+```bash
+python scripts/provision_environment.py search-status --run-dir "$RUN_DIR"
+```
+
+**Checkpoint:** the lookup reports `exists` and `recorded` without creating a resource or changing ownership.
+
+**If not:** a lookup/authorization error is not proof that the resource is absent. Resolve that error before retrying creation.
+
+| Lookup result | Safe next step |
+|---|---|
+| `exists: false`, `recorded: false`; the original creation operation failed | Retry only the original `search` command below, with the same run and name |
+| `exists: true`, `recorded: true` | Use the existing `search-status` / `wait-search` recovery above; do not create it again |
+| `exists: true`, `recorded: false` | An operation may have succeeded without a local record. Stop for ownership reconciliation; do not fabricate state or overwrite the resource |
+
+**Terminal — only for the confirmed absent/failed case:**
+
+```bash
+python scripts/provision_environment.py search --run-dir "$RUN_DIR"
+```
+
+**Checkpoint:** `resource: search`, `state: Succeeded`. Continue with [step 4](#setup-access). Preserve the original failed attempt.
+
+**If not:** if the same identity error repeats, retain the error and activity-log correlation for Azure support. If creation was accepted and only the wait expires, use the recorded-resource recovery above. Do not loop retries or remove the identity requirement.
+
 <a id="setup-access"></a>
 
 ## 4. Grant scoped access and create connections
@@ -381,6 +411,35 @@ python scripts/provision_environment.py search-connection --run-dir "$RUN_DIR"
 **Checkpoint:** the commands finish without errors. Every role line shows `created: true` or `already_assigned: true`, with `scope_resource` values `project`, `foundry`, and `search` for your user and `insights` and `logs` for the project identity. The connection outputs show `resource: insights-connection` and `resource: search-connection`.
 
 **If not:** have the environment owner (you, in self-study) check the principal and scope in the error, then [resume only the failed role/connection command](troubleshooting.en.md#setup-resume). For `AuthorizationFailed`, first confirm that the signed-in account can assign roles at that scope (for example, subscription Owner). Do not work around it with broad Owner access or changes to shared connections.
+
+<details>
+<summary>If you will run Levels 2 or 3, prepare their identities now</summary>
+
+Role propagation and cached authorization decisions can delay access. Prepare the optional roles **before the main workshop**, rather than discovering them at the first advanced evaluation. These commands do not change the SDK or grant Owner.
+
+**For Level 2 or 3 — original clone (`$REPO_ROOT`), same `RUN_DIR`:**
+
+```bash
+python scripts/provision_environment.py user-evaluation --run-dir "$RUN_DIR"
+```
+
+**Checkpoint:** the verified runner has Foundry User on `scope_resource: foundry`, with `created: true` or `already_assigned: true`.
+
+**If not:** follow [account evaluation access](instructor.en.md#advanced-evaluation-access); do not treat project-only access as sufficient.
+
+**For Level 3 continuous evaluation only — the same original clone:**
+
+```bash
+python scripts/provision_environment.py project-evaluation --run-dir "$RUN_DIR"
+```
+
+**Checkpoint:** the project identity has **Foundry User on the parent Foundry account**, not only its project. Existing sufficient account-scoped assignments are reused; the command does not remove older grants.
+
+**If not:** follow [scheduled-evaluation access](instructor.en.md#scheduled-evaluation-access). A successful assignment does not prove every backend has refreshed its authorization cache; later row-level checks must still reject execution errors.
+
+Skip these optional grants for a Level 1-only workshop. Continue with step 5 below; do not jump directly to an advanced evaluation before completing the main evidence.
+
+</details>
 
 <a id="setup-auxiliary"></a>
 

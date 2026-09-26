@@ -1,5 +1,7 @@
 import base64
+import contextlib
 import hashlib
+import io
 import json
 import sys
 import tempfile
@@ -55,6 +57,102 @@ class EnvironmentOwnershipTests(unittest.TestCase):
             check_group_ownership({**group, "tags": {"workshop": "other"}}, config, group["id"])
         with self.assertRaises(ValueError):
             check_group_ownership({**group, "location": "eastus"}, config, group["id"])
+
+    def search_provisioner(self):
+        provisioner = provision_environment.Provisioner.__new__(provision_environment.Provisioner)
+        provisioner.config = {"resource_group": "rg-test", "search": "search-test"}
+        provisioner.group_id = "/subscriptions/test/resourceGroups/rg-test"
+        provisioner.state = {"resources": {}}
+        provisioner.guard = Mock()
+        provisioner.save = Mock()
+        provisioner.az = Mock(return_value=[])
+        provisioner.get = Mock()
+        return provisioner
+
+    def test_search_status_handles_failed_creation_before_a_resource_was_recorded(self):
+        provisioner = self.search_provisioner()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            provisioner.search_status()
+        self.assertEqual(json.loads(output.getvalue()), {"name": "search-test", "exists": False, "recorded": False})
+        provisioner.guard.assert_called_once()
+        provisioner.az.assert_called_once_with("search", "service", "list", "--resource-group", "rg-test")
+        provisioner.get.assert_not_called()
+        provisioner.save.assert_not_called()
+        self.assertEqual(provisioner.state["resources"], {})
+
+    def test_search_status_does_not_adopt_an_unrecorded_resource(self):
+        for recorded in (False, True):
+            with self.subTest(recorded=recorded):
+                provisioner = self.search_provisioner()
+                result = {
+                    "id": provisioner.group_id + "/providers/Microsoft.Search/searchServices/search-test",
+                    "name": "search-test", "location": "swedencentral",
+                    "properties": {"provisioningState": "Provisioning", "status": "provisioning"},
+                }
+                if recorded:
+                    provisioner.state["resources"]["search"] = {"id": result["id"]}
+                    provisioner.get.return_value = result
+                else:
+                    provisioner.az.return_value = [result]
+                original = json.dumps(provisioner.state, sort_keys=True)
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    provisioner.search_status()
+                status = json.loads(output.getvalue())
+                self.assertEqual((status["exists"], status["recorded"], status["provisioning_state"]),
+                                 (True, recorded, "Provisioning"))
+                self.assertEqual(json.dumps(provisioner.state, sort_keys=True), original)
+                provisioner.save.assert_not_called()
+
+    def test_search_status_never_reports_authorization_or_lookup_errors_as_absence(self):
+        provisioner = self.search_provisioner()
+        provisioner.az.side_effect = RuntimeError("AuthorizationFailed")
+        with self.assertRaisesRegex(RuntimeError, "AuthorizationFailed"):
+            provisioner.search_status()
+        provisioner.az.side_effect = None
+        provisioner.az.return_value = [{
+            "id": "/subscriptions/other/resourceGroups/other/providers/Microsoft.Search/searchServices/search-test",
+            "name": "search-test",
+        }]
+        with self.assertRaisesRegex(ValueError, "outside this run"):
+            provisioner.search_status()
+        provisioner.save.assert_not_called()
+
+    def test_account_evaluation_role_is_explicit_and_does_not_widen_basic_setup(self):
+        provisioner = self.search_provisioner()
+        provisioner.config.update({"run_id": "test-run", "account": "account-test", "project": "project-test"})
+        provisioner.state["principal_id"] = "user-test"
+        provisioner.role = Mock()
+        provisioner.execute("user-evaluation")
+        provisioner.role.assert_called_once_with(
+            "user-test", "User", "foundry", provision_environment.ROLE_FOUNDRY_USER,
+        )
+        provisioner.role.reset_mock()
+        provisioner.execute("user-foundry")
+        provisioner.role.assert_called_once_with(
+            "user-test", "User", "project", provision_environment.ROLE_FOUNDRY_USER,
+        )
+        self.assertIn("user-evaluation", provision_environment.OPERATIONS)
+
+    def test_scheduled_evaluation_role_targets_project_identity_at_parent_account_scope(self):
+        provisioner = self.search_provisioner()
+        provisioner.config.update({"run_id": "test-run", "account": "account-test", "project": "project-test"})
+        provisioner.get.return_value = {"identity": {"principalId": "project-mi"}}
+        provisioner.role = Mock()
+        provisioner.execute("project-evaluation")
+        provisioner.get.assert_called_once_with("project")
+        provisioner.role.assert_called_once_with(
+            "project-mi", "ServicePrincipal", "foundry", provision_environment.ROLE_FOUNDRY_USER,
+        )
+        provisioner.role.reset_mock()
+        provisioner.execute("project-monitor")
+        self.assertEqual(provisioner.role.call_count, 2)
+        for resource in ("insights", "logs"):
+            provisioner.role.assert_any_call(
+                "project-mi", "ServicePrincipal", resource, provision_environment.ROLE_LOG_READER,
+            )
+        self.assertIn("project-evaluation", provision_environment.OPERATIONS)
 
 
 class EnvironmentPreparationTests(unittest.TestCase):

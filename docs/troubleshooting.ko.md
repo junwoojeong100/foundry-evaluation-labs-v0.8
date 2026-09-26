@@ -159,6 +159,7 @@ azd ai agent show --output json
 | 분류 | 증상 | 원인 또는 확인 | 조치 / 정확한 복귀 지점 |
 |---|---|---|---|
 | <a id="symptom-local"></a>로컬 실행 | 로컬 8088 연결 실패 | 터미널 A가 준비되지 않았거나 포트를 다른 프로세스가 씁니다. | `Connection refused`이면 A의 `Running on ...:8088`을 기다린 뒤 B의 요청 블록만 반복합니다. `Address already in use`이면 내가 켜 둔 다른 실습 서버만 그 창에서 `Ctrl+C`로 종료하고 [3-1](../README.ko.md#local)을 재개합니다. 모르는 프로세스는 종료하지 않습니다. |
+| 로컬 실행 | Readiness는 200인데 `/invocations`가 404 | Readiness만으로 앱의 신원이나 요청 경로 준비를 확인할 수 없습니다. | A에서 이 폴더의 `main.py`가 invocations 프로토콜로 실행되고 `Running on ...:8088`에 도달했는지 확인합니다. 404를 보존하고 리스너를 확인한 뒤 `smoke --local`만 다시 실행합니다. 계속되면 시작·요청 오류를 전달하며 모르는 프로세스 종료, 프로토콜 변경, SDK 업그레이드로 숨기지 않습니다. |
 | 배포 | `azd deploy` 오류·상태 불명확 | 이전 버전과 이번 대상 버전을 구분해야 합니다. | [배포 상태 확인](#deployment-recovery) 후 해당 미완료 블록으로만 복귀합니다. |
 | 검색 | `prepare-iq`에서 역할 부여 거부 | Search identity에 planner 접근 권한이 필요합니다. | [권한](instructor.ko.md#access)을 확인한 뒤 실패한 [2-1 정책 등록](../README.ko.md#knowledge-registration)을 다시 실행합니다. 아직 2-2 검색으로 넘어가지 않습니다. |
 | 검색 | `retrieve`가 끝났지만 문서가 없거나 `TRAVEL-2026`이 없음 | 등록 성공과 검색 성공은 별도입니다. | [검색 복구](#retrieval) 후 [정책 검색](../README.ko.md#policy-retrieval)으로 돌아갑니다. |
@@ -879,6 +880,9 @@ pwd
 **다음:** 위에서 고른 위치로 이동합니다. 아래 새 환경 준비 절차는 실행하지 않습니다.
 
 <a id="setup-resume"></a>
+
+Search 생성의 `FailedIdentityOperation` / HTTP 500은 재시도 전에 [읽기 전용 존재·소유권 진단](environment.ko.md#search-create-failure)을 사용합니다. 기록이 없다고 자동으로 재생성해도 되는 것은 아닙니다.
+
 <a id="환경-소유자-터미널을-닫은-뒤-준비-이어가기"></a>
 
 ## 환경 소유자: 미완료 준비 이어가기

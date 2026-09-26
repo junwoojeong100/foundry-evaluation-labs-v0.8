@@ -79,17 +79,21 @@ generated_rubric: 18/18 passed on improved; failed rows: none
 
 ## 2. 합성 질문으로 V2 스트레스 테스트
 
-**터미널 A:** Foundry가 새 출장 규정 질문 15개를 만들고, 각 질문을 V2 지침·정책 7개와 함께 Sol 배포에 보내 답변을 채점합니다.
+**터미널 A:** 새 출장 규정 질문 15개를 요청합니다. Foundry가 생성한 질문을 V2 지침·정책 7개와 함께 Sol 배포에 보내 답변을 채점합니다. 합성 평가 대상에는 [현재 preview API](https://learn.microsoft.com/azure/foundry/observability/how-to/cloud-evaluation-synthetic-data)가 요구하는 `system` 메시지를 사용합니다.
 
 ```bash
 python scripts/workshop.py stress-test --model sol --count 15
 ```
 
-**완료 확인:** `Stress test completed on sol: N of 15 synthetic questions failed an evaluator`와 `intent_resolution`·`relevance`·`indirect_attack`의 결과가 한 줄씩 나옵니다. 실패가 있으면 질문도 나옵니다. `N=0`도 정상 결과입니다.
+**완료 확인:** `Stress test completed on sol: N of 15 synthetic questions failed an evaluator`와 `intent_resolution`·`relevance`·`indirect_attack`의 결과가 한 줄씩 나오며 **세 분모가 모두 15**입니다. `stress-sol.json`에는 `observed_rows: 15`, `coverage_complete: true`, `errored_results: 0`이 저장됩니다. 실패가 있으면 질문도 나옵니다. `N=0`도 정상 결과입니다.
 
 **다르면:** `The run is still in progress`로 종료됐다면 같은 명령으로 재개합니다. 그 밖의 오류는 [레벨 2·3 복구](troubleshooting.ko.md#levels)를 봅니다. 질문 수는 15개로 유지합니다.
 
+**요청한 행 수와 관측된 행 수는 다릅니다.** 실제 리허설에서 15문항을 요청했지만 13행만 반환됐고 Foundry 상태는 `completed`였습니다. 명령은 이제 누락·초과·중복 행과 과거에 “성공”으로 저장된 불완전한 스트레스 결과도 거부합니다. `received 13 of 15 requested rows`는 15문항 통과가 아닌 범위 미충족입니다. 생성 결과와 서비스 기록을 보존하고 원인·비용을 검토한 뒤 [아카이브 후 한 번 재시도](troubleshooting.ko.md#level-state-recovery)할 수 있습니다. 재시도는 별도 실험이므로 이전 행과 합치거나 원하는 점수가 나올 때까지 문항 수를 늘리지 않습니다. 계속 부족하면 이 절을 미완료로 보고합니다.
+
 **편집기 → 포털 — N이 0보다 크면 실패 한 건 확인:** `src/agent/.foundry/results/level3/stress-sol.json`을 엽니다. `failed_questions`의 첫 항목에서 전체 `query`와 `failed`의 평가기 이름을 읽습니다. 터미널에서는 긴 질문이 잘립니다. 출력의 `Portal:` 링크 → `<LAB_PREFIX>-stress-sol` run → 결과 표의 그 질문 행을 열고, 실제 응답과 미통과 평가기의 설명을 읽은 뒤 원인을 분류합니다. N이 0이면 `none`을 기록하고 이 확인은 건너뜁니다.
+
+SDK 파일로 확인할 때는 `stress-sol-output.json`을 엽니다. 실제 대상 모델의 답변은 `datasource_item["sample.output_text"]`이며 `sample.output`에도 있습니다. 생성된 `candidate_response`는 **대상 모델의 실제 답변도, 전문가가 검증한 정답도 아닙니다.** 실제 출력 옆의 평가기별 `reason`을 읽습니다.
 
 **완료 확인:** 질문만 보고 추측한 것이 아니라 응답·평가 설명에 근거해, 확인한 질문과 정책 공백·judge 문제·안전 경고 중 관찰한 유형을 메모했습니다.
 
@@ -98,6 +102,7 @@ python scripts/workshop.py stress-test --model sol --count 15
 **읽는 법:**
 
 - **모델 단위 테스트입니다.** Foundry가 정책 7개를 Sol에 직접 넣습니다. 에이전트와 검색은 쓰지 않으므로 기본 실습 5–8단계 수치와 비교하지 않습니다.
+- **기본 제공 judge에는 그 정책 7개가 들어가지 않습니다.** 생성한 질문과 대상 답변만 봅니다. 새 영문 리허설에서는 정책이 한국 국내 출장만 다루는데도 judge가 “Chicago is overseas”를 틀렸다고 판단했습니다. 직접 확인한 이 사례는 judge의 맥락 부족이지 에이전트가 해외 규정을 만들어야 한다는 증거가 아닙니다. 점수를 보존하고 판정 차이를 설명하며, 다른 모든 실패도 같은 원인이라고 가정하지 않습니다.
 - **저장된 run을 재사용합니다.** 같은 명령을 다시 실행하면 저장된 질문과 run을 이어 씁니다. 결과 파일을 지워 점수를 다시 뽑지 않습니다. 별도의 새 실험은 질문과 수치가 달라질 수 있으므로 같은 run처럼 비교하지 않습니다.
 - **다음 실험의 후보로만 메모합니다.** 직접 확인한 질문만 분류하며, 나머지 실패는 미검토로 남깁니다. **이번 실습의 `dev`·`holdout` 파일은 수정하지 않습니다.** 고정 정답을 검토한 새 질문을 `dev`에 추가하는 일은 이번 보고·정리 후 별도 실험에서 합니다. `holdout`으로 지침을 튜닝하지 않습니다.
 
@@ -270,6 +275,8 @@ trace는 8시간 전 것이었습니다. 명령이 수집 시각을 보고 조�
 
 ## 6. 연속 평가 켜기
 
+**사전 조건:** 프로젝트 managed identity에는 준비된 trace 조회 역할과 **부모 Foundry 계정 범위의 Foundry User**가 필요합니다. 프로젝트 범위 역할과 직접 OpenAI 접근, 또는 실행 사용자의 역할로 이 계정 범위를 대신할 수 없습니다. 준비되지 않았다면 소유자가 [예약 평가 접근](instructor.ko.md#scheduled-evaluation-access)을 마친 뒤 여기로 돌아옵니다.
+
 **터미널 A — 일정 만들기:** 생성 시점의 에이전트 버전에 고정해 최근 trace를 최대 20개씩 매시간 평가합니다. 첫 실행은 2분 뒤에 시작하고, 일정은 8시간 뒤 스스로 멈추며, 10단계가 삭제합니다. 같은 명령을 다시 실행하면 기존 일정의 상태를 조회합니다.
 
 ```bash
@@ -294,6 +301,8 @@ python scripts/workshop.py continuous-eval
 **다르면:** `in_progress`·`queued`이면 1분 뒤 같은 명령으로 조회합니다. `failed`·오류·0 traces이면 미완료로 기록하고 강사와 트래픽·권한을 확인합니다. 일정을 지우고 새로 만들지 않습니다.
 
 <a id="continuous-expired"></a>
+
+**Completed만으로는 부족합니다.** 명령은 완료 run의 행을 `level3/continuous-<run_id>-output.json`에 내려받고 `continuous.json`에 `results_complete`·`invalid_results`를 기록합니다. 세 평가기 모두 모든 trace에 유효한 결과가 있어야 합니다. `completed (incomplete evaluator output)` 또는 `20 errors`는 유효한 0/20 품질 점수가 아니라 실행 문제입니다. 실제 judge 오류는 `sample.error`에 있으며 CLI에도 출력하고, 불완전한 증거는 복합 게이트가 차단합니다. 권한 수정 후에는 **같은 매시간 일정**의 다음 run을 기다리고 첫 실패를 보존합니다. 행 검증이 없는 과거 요약은 `continuous-eval`을 한 번 조회해 증거를 보충하며 새 일정을 만들지 않습니다.
 
 **나중에 재개했다면:** 편집기에서 `src/agent/.foundry/results/level3/continuous.json`의 `ends`를 현재 **UTC 날짜·시각**과 비교합니다. 만료된 일정은 같은 명령으로 조회해도 새로 시작하지 않습니다. 이미 시작한 `queued`·`in_progress` run은 끝날 때까지 확인합니다. 진행 중 run도, 아래 행별 기준을 충족하는 완료 결과도 없다면 **6절 미완료**를 기록하고 [7절](#release-gate)에서 누락에 따른 차단을 보고한 뒤 정리합니다. 새 일정이나 조회 반복으로 완료 처리하지 않습니다.
 
@@ -445,7 +454,7 @@ exit code: 0
 
 <a id="ci-review-provenance"></a>
 
-**검토의 범위:** 이것은 **별도 실험**입니다. 파이프라인은 새 baseline 답변을 수집하고, 전달한 `review_reason`을 같은 `row_id`에 `feedback`의 기본 `human` 표시로 기록합니다. `row_id`가 같아도 답변과 `trace_id`는 다릅니다. 이 표시는 **새 응답을 사람이 다시 검토했다는 증거가 아니며**, `verify`도 이 실행 안의 trace 연결을 검사할 뿐 복사한 이유가 새 답변에 맞는지는 확인하지 않습니다. [원래 6-3 검토](../README.ko.md#save-review)와 [9-3 보고서](../README.ko.md#finish)를 보관하고, CI artifact로 대체하거나 원래 검토한 응답이 보존됐다고 보고하지 않습니다.
+**검토의 범위:** 이것은 **별도 실험**입니다. 파이프라인은 새 baseline 답변을 수집하고, 전달한 `review_reason`을 같은 `row_id`에 `feedback --reviewer automation`으로 기록하며 `human`으로 표시하지 않습니다. `row_id`가 같아도 답변과 `trace_id`는 다릅니다. 이 기록은 **새 응답을 사람이 다시 검토했다는 증거가 아니며**, `verify`도 이 실행 안의 trace 연결을 검사할 뿐 복사한 이유가 새 답변에 맞는지는 확인하지 않습니다. [원래 6-3 검토](../README.ko.md#save-review)와 [9-3 보고서](../README.ko.md#finish)를 보관하고, CI artifact로 대체하거나 원래 검토한 응답이 보존됐다고 보고하지 않습니다.
 
 실행마다 자기 `LAB_PREFIX`로 사용자 지정 평가기를 등록하고 끝나면 삭제합니다. 한 번의 실행은 매시간 일정을 기다릴 수 없어 `continuous`를 waiver합니다. Foundry 자체 평가 action도 있습니다([GitHub Actions에서 평가 실행](https://learn.microsoft.com/azure/foundry/how-to/evaluation-github-action)).
 

@@ -10,6 +10,7 @@
 |---|---|
 | Main workshop | Steps 1–9 finished in this folder; **step 10 cleanup not yet run** |
 | Inputs | Saved `baseline` and `improved` responses: 18 each. Holdout is not used. |
+| Evaluation access | The runner has **Foundry User on the parent Foundry account**, not only the project ([owner preparation](instructor.en.md#advanced-evaluation-access)) |
 | Cost | Additional judge calls; **no new agent responses** |
 | After this level | [Level 3](level-3.en.md) or [step 10 cleanup](../README.md#cleanup), which also removes these custom evaluators |
 
@@ -69,7 +70,7 @@ python scripts/workshop.py evaluate-suite --labels "$BASELINE_LABEL" "$CANDIDATE
 <details>
 <summary>Retry a failed run — only when a failed run or errored results are confirmed</summary>
 
-If results failed, inspect the saved error first. Rate limiting is only one possible cause. For a 429, wait for `Retry-After`, then run:
+If results failed, inspect `src/agent/.foundry/results/suite/suite.json → runs → <label> → error` and `result_counts` first. The command now preserves the service's error, including permission failures; for an older record without it, rerun the same command **without** `--retry-failed` once to fetch the missing diagnosis without creating a run. `PermissionDenied` mentioning `accounts/OpenAI/evals/write` needs the [account-scoped role](instructor.en.md#advanced-evaluation-access), not a new agent or SDK. Rate limiting is only one possible cause. For a 429, wait for `Retry-After`, then run:
 
 ```bash
 python scripts/workshop.py evaluate-suite --labels "$BASELINE_LABEL" "$CANDIDATE_LABEL" --retry-failed

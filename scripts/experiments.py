@@ -22,6 +22,8 @@ from grading import grade, paired_outcomes, summarize, validate_matrix
 from prompting import load_prompt
 from settings import RuntimeConfig, credential, data_directory, required, workshop_language
 
+REVIEWER_TYPES = ("human", "assistant", "automation")
+
 
 def dataset(split: str) -> list[dict[str, Any]]:
     if split not in {"dev", "holdout"}:
@@ -675,8 +677,8 @@ def feedback(label: str, row_id: str, reason: str, reviewer: str = "human") -> N
         raise ValueError("Holdout data cannot be harvested into prompt-development regression data.")
     if len(reason.strip()) < 10:
         raise ValueError("Record a meaningful review reason.")
-    if reviewer not in {"human", "assistant"}:
-        raise ValueError("Reviewer must be human or assistant.")
+    if reviewer not in REVIEWER_TYPES:
+        raise ValueError("Reviewer must be human, assistant, or automation.")
     selected = [row for row in rows if row["row_id"] == row_id]
     if len(selected) != 1:
         raise ValueError("Unknown row ID.")

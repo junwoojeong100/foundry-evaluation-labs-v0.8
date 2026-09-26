@@ -159,6 +159,7 @@ Use the matching row, then return to the failed checkpoint. If it persists, pres
 | Route | Symptom | Cause or check | Action / exact return |
 |---|---|---|---|
 | <a id="symptom-local"></a>Local run | Port 8088 unavailable | Terminal A may not be serving, or another process owns the port. | For `Connection refused`, wait for A's `Running on ...:8088`, then repeat only B's request block. For `Address already in use`, stop only another workshop server you started with `Ctrl+C` in its window, then resume [3-1](../README.md#local). Do not stop an unfamiliar process. |
+| Local run | Readiness is 200 but `/invocations` returns 404 | Readiness alone does not identify the app or prove its invocation route is available. | Check that A is running this folder's `main.py` with the invocations protocol and has reached `Running on ...:8088`. Preserve the 404, then retry only `smoke --local` after confirming the listener. If it persists, report the startup and request errors; do not kill unknown processes, switch protocols, or upgrade SDKs to hide it. |
 | Deployment | `azd deploy` error or uncertain outcome | Distinguish the previous version from this attempt's target. | [Check deployment status](#deployment-recovery), then return only to the unfinished block. |
 | Retrieval | `prepare-iq` cannot create a role assignment | The Search identity needs planner access. | Check [access](instructor.en.md#access), then rerun the failed [2-1 registration](../README.md#knowledge-registration). Do not skip to 2-2 retrieval yet. |
 | Retrieval | `retrieve` finishes without documents or without `TRAVEL-2026` | Registration and retrieval are separate checks. | [Recover retrieval](#retrieval); return to [policy retrieval](../README.md#policy-retrieval). |
@@ -878,6 +879,8 @@ pwd
 **Next:** go to the selected destination. Do not run the new-environment procedure below.
 
 <a id="setup-resume"></a>
+
+For Search creation `FailedIdentityOperation` / HTTP 500, use [read-only existence/ownership diagnosis](environment.en.md#search-create-failure) before retrying. An unrecorded resource is not automatically safe to recreate.
 <a id="environment-owners-resume-setup-after-closing-the-terminal"></a>
 
 ## Environment owners: resume incomplete setup

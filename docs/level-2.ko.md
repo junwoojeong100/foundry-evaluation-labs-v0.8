@@ -10,6 +10,7 @@
 |---|---|
 | 기본 실습 | 같은 폴더에서 1–9단계 완료. **10단계 정리는 아직 실행하지 않음** |
 | 입력 | 저장된 `baseline`·`improved` 각 18응답. `holdout`은 사용하지 않음 |
+| 평가 접근 | 실행자에게 프로젝트뿐 아니라 **부모 Foundry 계정 범위의 Foundry User**가 있음([환경 소유자 준비](instructor.ko.md#advanced-evaluation-access)) |
 | 비용 | judge 추가 호출. **새 에이전트 응답은 만들지 않음** |
 | 마친 뒤 | [레벨 3](level-3.ko.md) 또는 [10단계 정리](../README.ko.md#cleanup). 10단계 정리는 여기서 만든 사용자 지정 평가기도 삭제합니다 |
 
@@ -69,7 +70,7 @@ python scripts/workshop.py evaluate-suite --labels "$BASELINE_LABEL" "$CANDIDATE
 <details>
 <summary>실패한 run 재시도 — 실패·오류 행이 확인된 경우에만</summary>
 
-결과가 실패했다면 저장된 오류부터 확인합니다. 속도 제한은 가능한 원인 중 하나일 뿐입니다. 429라면 `Retry-After`만큼 기다린 뒤 실행합니다.
+결과가 실패했다면 `src/agent/.foundry/results/suite/suite.json → runs → <label> → error`와 `result_counts`부터 확인합니다. 명령은 권한 오류를 포함한 서비스 원본 오류를 보존합니다. 오류가 없는 예전 기록은 같은 명령을 **`--retry-failed` 없이** 한 번 실행하면 새 run을 만들지 않고 진단을 가져옵니다. `accounts/OpenAI/evals/write`의 `PermissionDenied`는 [계정 범위 역할](instructor.ko.md#advanced-evaluation-access)이 필요하며 새 에이전트나 SDK로 해결하지 않습니다. 속도 제한은 가능한 원인 중 하나일 뿐입니다. 429라면 `Retry-After`만큼 기다린 뒤 실행합니다.
 
 ```bash
 python scripts/workshop.py evaluate-suite --labels "$BASELINE_LABEL" "$CANDIDATE_LABEL" --retry-failed

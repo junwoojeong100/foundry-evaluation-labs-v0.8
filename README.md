@@ -423,6 +423,8 @@ python scripts/workshop.py retrieve --query "What is the lodging limit for a dom
 2. Select the project name at the top left and choose `AZURE_AI_PROJECT_NAME` from `.env` (resource `AZURE_AI_ACCOUNT_NAME`).
 3. Open **Build** at the top → **Knowledge** on the left → **Knowledge bases** → your KB (`LAB_PREFIX` plus `-kb`).
 
+On the first switch, **Select a project to continue** may appear before the new portal opens. Match both the project name and its **resource** name, then choose **Let's go**. If another account picker appears, select the same workshop account; CLI sign-in and the two portal experiences have separate sessions. Close the welcome tour if shown. An **API key authentication is disabled** notice is expected for this keyless setup, not a reason to enable keys or save a different KB configuration.
+
 **Checkpoint:** under **Knowledge sources** near the bottom, the source (`LAB_PREFIX` plus `-source`) is **Active**, and **Retrieval instructions** are filled in.
 
 **If not:** see [portal differences](docs/troubleshooting.en.md#portal-differs).
@@ -1435,6 +1437,7 @@ Keep them for your report and any recovery; do not delete them or replace them w
 Everything below is optional; the 10-step workshop is complete.
 
 - **Results and limits:** [evaluation method and English results](docs/validation.en.md)
+- **Latest live rehearsal:** [actual Azure verification, recovered failures, and unverified scope](docs/live-validation.en.md)
 - **Apply the method:** [evaluation design, dataset card, judge calibration, paired regressions, and uncertainty](docs/evaluation-design.en.md)
 - **Design and terms:** [learning-loop background](docs/reference.en.md#background) · [glossary](docs/reference.en.md#terms) · [architecture, models, and official sources](docs/reference.en.md)
 - **Levels 2–3:** [Foundry custom evaluators and insights](docs/level-2.en.md) · [generated rubric, stress test, red teaming, live agent, trace and continuous evaluation, and release gate](docs/level-3.en.md)

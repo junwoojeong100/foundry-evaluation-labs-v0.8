@@ -189,12 +189,14 @@ For each row, check **principal → actual role name → target resource** in th
 |---|---|---|---|
 | Runner: resource, model-catalog, and quota discovery | Reader | `.env` subscription `AZURE_SUBSCRIPTION_ID`, including its `AZURE_RESOURCE_GROUP` | Before `preflight` and each `collect`. Even with existing deployments, these commands read subscription-level regional models/usage, so group-only Reader is insufficient. Check every runner; do not duplicate sufficient inherited access. |
 | Runner: project and agent work | Foundry User | Project `AZURE_AI_PROJECT_NAME` under `AZURE_AI_ACCOUNT_NAME` | New setup's `user-foundry`; check additional runners separately |
+| Runner: Level 2 code-evaluator suite and Level 3 account evaluation | Foundry User | Parent Foundry account `AZURE_AI_ACCOUNT_NAME` | [Advanced evaluation access](#advanced-evaluation-access), before Level 2; project-only access is insufficient |
 | Runner: model inference | Cognitive Services OpenAI User | Foundry account `AZURE_AI_ACCOUNT_NAME` | New setup's `user-model`; check additional runners separately |
 | Runner: Search schema creation | Search Service Contributor | Search service `AZURE_SEARCH_NAME` | New setup's `user-search-service`; before README 2-1 |
 | Runner: policy upload and retrieval | Search Index Data Contributor | The same Search service | New setup's `user-search-data`; before README 2-1 |
 | Model-preparation operator: create/delete deployments | Cognitive Services OpenAI Contributor | The same Foundry account | Before auxiliary/candidate preparation; not needed by participants using shared models |
 | User viewing telemetry | Log Analytics Reader | Each connected Application Insights resource and Log Analytics workspace | Before portal Logs or `monitor` |
 | Project managed identity | Log Analytics Reader | The same Application Insights resource and workspace, each | New setup's `project-monitor` or existing setup's `prepare-trace-access` |
+| Project managed identity: scheduled evaluation and judges | Foundry User | Parent Foundry account containing the project and judge deployment | [Scheduled-evaluation access](#scheduled-evaluation-access), before Level 3 section 6; project-only Foundry User plus direct OpenAI access is not the supported substitute |
 | Search managed identity | Cognitive Services User | Planner model's Foundry account | For a shared class, prepare once [before rehearsal](#shared-search-access) and retain through the class. Exclusive self-study may create it in README 2-1 `prepare-iq`. |
 | Agent instance identity: retrieval | Search Index Data Reader | Workshop Search service | README 4-2 `grant-agent-access` |
 | Agent instance identity: model inference | Cognitive Services OpenAI User | Candidate models' Foundry account | README 4-2 `grant-agent-access` |
@@ -607,7 +609,23 @@ Keep the local server in a trusted development environment, never expose it publ
 
 **If Level 3's prerequisites brought you here:** have the environment owner check or finish only the required preparation below, then return to [Level 3 section 1](level-3.en.md#generate-rubric). The rehearsal and cleanup path applies only to an instructor conducting a rehearsal.
 
-Rehearse only the levels you will teach ([Level 2](level-2.en.md), [Level 3](level-3.en.md)), after README step 9 in the rehearsal clone and before its step 10. Teams do them between steps 9 and 10 in their own folders. Before teams start, confirm trace access, judge and Sol capacity, red-team approval if you teach section 3, and cleanup boundaries. Level 3 section 4 calls the Foundry account's evaluation API as each participant, so participants need **Foundry User** on the Foundry account; a project-scope assignment, such as the one `user-foundry` creates in the [new-environment guide](environment.en.md), is not enough.
+Rehearse only the levels you will teach ([Level 2](level-2.en.md), [Level 3](level-3.en.md)), after README step 9 in the rehearsal clone and before its step 10. Teams do them between steps 9 and 10 in their own folders. Before teams start, confirm trace access, judge and Sol capacity, red-team approval if you teach section 3, and cleanup boundaries. **Level 2's code evaluator already needs the account evaluation API**, not only Level 3 section 4. Participants need **Foundry User** on the Foundry account; a project-scope assignment, such as the one `user-foundry` creates in the [new-environment guide](environment.en.md), is not enough.
+
+<a id="advanced-evaluation-access"></a>
+
+**Environment owner — before Level 2:** check the runner's Foundry User assignment on the **parent account**, not just the project. A project-only runner can complete Level 1 and register evaluators yet receive `PermissionDenied` for `Microsoft.CognitiveServices/accounts/OpenAI/evals/write` when the code-evaluator suite executes. Subscription Owner is a management role and does not replace this data-plane role.
+
+For an existing foundation, the authorized access administrator assigns the account-scoped role from the table above. For a dedicated environment created with this guide, the verified setup user can use the optional operation below from the **original clone (`$REPO_ROOT`)**, with the original `RUN_DIR` and authorized CLI profile. It grants the role only to the user already recorded by `identity`; other participants still need their own assignments.
+
+```bash
+python scripts/provision_environment.py user-evaluation --run-dir "$RUN_DIR"
+```
+
+**Checkpoint:** `scope_resource: foundry`, the Foundry User role ID, and `created: true` or `already_assigned: true`. The assignment is recorded in the environment's infrastructure ownership state. Basic Level 1 preparation still grants Foundry User only at project scope.
+
+**If not:** stop and check the denied principal and scope; do not give Owner to the agent or change identities. If a suite already failed, preserve `suite.json → runs → <label> → error`, allow role propagation, then retry only that failed suite run with `--retry-failed`. Do not recollect answers.
+
+Return to [Level 2 section 1](level-2.en.md#register-evaluators), or continue the remaining trace preparation below if it is still needed.
 
 **Terminal — prepare trace access for existing foundations:** run once in the model-preparation folder for the shared foundation. Rehearsal and team folders do not need this command after it succeeds. New environments created with [the new-environment guide](environment.en.md) already have these roles.
 
@@ -618,6 +636,24 @@ python scripts/workshop.py prepare-trace-access
 **Checkpoint:** the command finishes without errors and prints `Trace access is ready. This shared preparation is not recorded as team-owned, so team cleanup keeps it.` It may also print `Log Analytics Reader is already assigned...` or `Assigned Log Analytics Reader...`.
 
 **If not:** stop Level 2/3 preparation and have the environment owner resolve the reported managed-identity, workspace, or RBAC issue. Do not let teams start trace evaluation yet.
+
+<a id="scheduled-evaluation-access"></a>
+
+**Before Level 3 section 6:** the **project managed identity** needs **Foundry User on the parent Foundry account**. This is the scope required by the [official minimum assignments](https://learn.microsoft.com/azure/foundry/concepts/rbac-foundry#minimum-role-assignments-to-get-started) and [hosted-agent permissions](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agent-permissions#azure-resource-setup). It covers the Foundry project flow for evaluation assets and judge inference, including `Microsoft.CognitiveServices/accounts/AIServices/assets/read` and `Microsoft.CognitiveServices/accounts/OpenAI/deployments/chat/completions/action`.
+
+Do not confuse this identity with the runner or hosted agent instance. **Foundry User only on the project plus Cognitive Services OpenAI User on the account was an incomplete earlier recommendation.** The latter is for direct account-level OpenAI access, not a replacement for the parent-account Foundry role. Keep the project's trace-reader permissions separately.
+
+For an existing foundation, the access administrator assigns this account-scoped Foundry User role to the project's managed identity. For a dedicated environment created with the setup tool, run from the **original clone (`$REPO_ROOT`)**, preserving `RUN_DIR` and the authorized CLI profile:
+
+```bash
+python scripts/provision_environment.py project-evaluation --run-dir "$RUN_DIR"
+```
+
+**Checkpoint:** `scope_resource: foundry`, the Foundry User role, `principal_type: ServicePrincipal`, and `created: true` or `already_assigned: true`. The identity is read from the recorded project, not supplied as an arbitrary user or agent ID. The command does not grant Owner or remove existing assignments.
+
+**If not:** resolve the exact identity/scope error. For `The project managed identity could not access the project` / `assets/read`, verify the parent-account scope and allow propagation before resuming the same `continuous-eval` command. Preserve its saved eval ID and creation error; do not clear ownership or grant the agent Owner. Return to [continuous evaluation](level-3.en.md#continuous-eval) after this prerequisite is met.
+
+If a schedule exists but its judge rows show `PermissionDenied` for `chat/completions/action`, check **Foundry User on the parent account for the project identity**, not the logged-in user's access. After it propagates, wait for the next run of the same hourly schedule. Do not recreate the schedule or overwrite the first failed run to manufacture a successful first result.
 
 Before teaching Level 3 red teaming, get organization approval for harmful-prompt testing; otherwise skip Level 3 section 3. Use only the synthetic workshop data; do not connect real employee data.
 
