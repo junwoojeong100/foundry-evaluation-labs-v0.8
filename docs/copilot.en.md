@@ -86,7 +86,7 @@ Create an unused clone outside any existing workshop folder. If you already have
 **Regular terminal — after you `cd` to the parent folder for clones:**
 
 ```bash
-git clone https://github.com/junwoojeong100/foundry-evaluation.git foundry-evaluation-ghcp-en &&
+git clone https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8.git foundry-evaluation-ghcp-en &&
 cd foundry-evaluation-ghcp-en
 ```
 

@@ -86,7 +86,7 @@ copilot --version
 **일반 터미널 — 실습용 clone 상위 폴더로 `cd`한 뒤:**
 
 ```bash
-git clone https://github.com/junwoojeong100/foundry-evaluation.git foundry-evaluation-ghcp-ko &&
+git clone https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8.git foundry-evaluation-ghcp-ko &&
 cd foundry-evaluation-ghcp-ko
 ```
 

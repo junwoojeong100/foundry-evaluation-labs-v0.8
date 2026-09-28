@@ -20,7 +20,7 @@
 If you already have this repository, open a terminal in the folder containing `README.md` and skip the clone. Otherwise, use GitHub's **Code → Download ZIP**, extract it, and open a terminal in the extracted folder, or run:
 
 ```bash
-git clone https://github.com/junwoojeong100/foundry-evaluation.git
+git clone https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8.git foundry-evaluation
 ```
 
 **Checkpoint:** Git finishes without an error. Then open the downloaded folder:

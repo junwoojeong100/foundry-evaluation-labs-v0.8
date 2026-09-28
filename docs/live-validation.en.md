@@ -76,7 +76,7 @@ One Korean agent-target run remained in progress without published rows for over
 
 Local evidence is under `.workshop/en-20260926-live/` and `.workshop/ko-20260926-live/`: source manifests/amendments, setup and command logs, response matrices, evaluator outputs, telemetry, attempt archives, and `workshop-report.txt`. These private artifacts are Git-ignored and are not included in the public repository.
 
-The published credential-free [validation workflow](https://github.com/junwoojeong100/foundry-evaluation/actions/runs/36237697845) passed on the source-baseline commit. The new recovery changes passed the local offline suite; this does not claim that an unpushed change has run in GitHub Actions.
+The published credential-free [validation workflow](https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8/actions/runs/36237697845) passed on the source-baseline commit. The new recovery changes passed the local offline suite; this does not claim that an unpushed change has run in GitHub Actions.
 
 The cleanup plans were checked against the unchanged ownership records. For **each** cohort, `check-cleanup` confirmed the agent was absent, plus **3 candidate deployments, 3 Search objects, 3 temporary role assignments, 1 schedule, 3 custom evaluators, and 3 generated/artifact datasets** were removed. Foundry, Search, Application Insights, the auxiliary model, and local evidence were preserved. There are no remaining hourly schedules from this rehearsal.
 

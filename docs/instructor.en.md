@@ -137,7 +137,7 @@ The `azure.ai.agents` extension handles `azd ai agent`, so compare both extensio
 
 Keep the outputs of `azd version`, `azd extension list`, and `azd ai agent --help`, plus the error. Class participants give them to the instructor, who compares them with **azd and both extension versions from a successful rehearsal** and repairs only the differing tool through its official installation guidance. Record these versions during rehearsal and include them in the team handoff.
 
-For self-study, first compare your installed versions with the [version reference above](#tested-toolchain). If a command is missing, repair that tool using the [official azd installation guidance](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd). If it remains missing, check or report a [repository issue](https://github.com/junwoojeong100/foundry-evaluation/issues) with those outputs. Do not change working tools merely because their versions differ or guess a replacement version.
+For self-study, first compare your installed versions with the [version reference above](#tested-toolchain). If a command is missing, repair that tool using the [official azd installation guidance](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd). If it remains missing, check or report a [repository issue](https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8/issues) with those outputs. Do not change working tools merely because their versions differ or guess a replacement version.
 
 **Checkpoint:** in the same terminal, `azd extension list` shows an installed `microsoft.foundry`, and `azd ai agent --help` includes both `run` and `invoke`.
 
@@ -283,7 +283,7 @@ bash
 **Before running:** if `foundry-evaluation-model-prep-en` already exists, replace both folder names in the block with one unused name. Do not delete the existing folder.
 
 ```bash
-git clone https://github.com/junwoojeong100/foundry-evaluation.git foundry-evaluation-model-prep-en &&
+git clone https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8.git foundry-evaluation-model-prep-en &&
 cd foundry-evaluation-model-prep-en
 ```
 
@@ -572,7 +572,7 @@ Preparation folder (owns the shared models)
 **Before running:** if `foundry-evaluation-rehearsal-en` already exists, replace both folder names in the block with one unused name. Do not delete the existing folder.
 
 ```bash
-git clone https://github.com/junwoojeong100/foundry-evaluation.git foundry-evaluation-rehearsal-en &&
+git clone https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8.git foundry-evaluation-rehearsal-en &&
 cd foundry-evaluation-rehearsal-en
 ```
 

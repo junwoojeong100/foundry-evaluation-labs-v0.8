@@ -56,6 +56,14 @@ python -S -m unittest discover -s tests -p test_offline_lab.py -v
 
 입문 예제의 의도한 회귀 때문에 기본 CI가 실패하지는 않습니다. 테스트는 선택 게이트가 **올바른 이유로 1을 반환하는지** 확인합니다.
 
+## 저장소 이름 변경과 로컬 폴더 이동
+
+두 언어 가이드의 GitHub 주소를 새 이름으로 갱신합니다. 이전 이름을 재사용하면 사라지는 리다이렉트에 의존하지 않습니다. clone 대상 폴더를 명시하고 뒤의 `cd`와 일치시킵니다. 로컬 폴더 이름, `azure.yaml`의 프로젝트 이름, Azure 자원 이름과 소유권 태그는 GitHub 주소가 아니므로 일괄 치환하지 않습니다.
+
+GitHub에서 이름만 바꾸면 로컬 파일은 이동하지 않습니다. 로컬 실습 폴더까지 옮겼다면 가상환경은 그대로 이동해 재사용할 수 없습니다. 로컬 에이전트를 멈추고, 기존 환경을 보관한 상태에서 최종 경로에 해당 실습 폴더의 `requirements.lock.txt`로 다시 만듭니다. 활성화와 오프라인 검사를 확인한 뒤에만 백업을 정리합니다. 기존 `.workshop/<run>/config.json`은 `workspace`만 해당 실행의 새 절대 `workshop` 경로로 바꿉니다. `.env`, Azure 식별자, 소유권 기록, 소스 manifest, 이전 결과는 보존합니다.
+
+**CI를 설정한 사본**의 이름이나 소유자를 바꿨다면 [CI 식별자 준비](level-3.ko.md#ci-setup)로 현재 subject 접두사를 다시 조회해 Azure federated credential의 전체 subject와 대조합니다. 다를 때만 식별자 소유자가 credential을 갱신합니다. 원본 실습 저장소의 이름만 바꾼 것은 별도 fork의 식별자를 바꾸지 않습니다.
+
 <a id="upgrades"></a>
 
 ## SDK·API·평가기·모델 업그레이드

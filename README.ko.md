@@ -175,7 +175,7 @@ bash
 **터미널 A — 새 폴더로 clone:** 실습 결과가 없는 **clone이나 압축을 푼 ZIP 폴더**가 이미 있으면 이 블록을 건너뛰고, 그 폴더 루트로 이동해 `ls README.ko.md && pwd`만 실행합니다.
 
 ```bash
-git clone https://github.com/junwoojeong100/foundry-evaluation.git foundry-evaluation-ko &&
+git clone https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8.git foundry-evaluation-ko &&
 cd foundry-evaluation-ko &&
 ls README.ko.md &&
 pwd

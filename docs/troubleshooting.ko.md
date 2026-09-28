@@ -214,7 +214,7 @@ python -m pip check
 | `activate` 파일이 없음 | 원래 설치 위치로 돌아갑니다: [참가자 1-2](../README.ko.md#python-setup), [새 환경 1-6](environment.ko.md#setup-python), [기존 환경 Python 준비](instructor.ko.md#existing-python). 없는 가상환경만 만들며 소스·실행 기록은 보존합니다. |
 | Python 버전이나 가상환경 경로가 다름 | 현재 폴더와 [Python 3.13 설치](instructor.ko.md#tools)를 확인합니다. 다른 폴더의 Python을 쓰거나 기존 가상환경을 삭제해 우회하지 않습니다. |
 | 원래 오류가 `ModuleNotFoundError`이거나 `pip check`가 의존성 불일치를 보고함 | 위 Python·경로가 맞을 때만 아래 고정 의존성 복구를 실행합니다. |
-| 환경 확인은 정상이지만 assertion 등 테스트 실패가 남음 | 테스트 이름·traceback·Python 버전을 수업 담당자에게 전달합니다. 혼자 실습하면 비밀·개인 정보를 제거한 오류로 [저장소 이슈](https://github.com/junwoojeong100/foundry-evaluation/issues)를 확인하거나 보고하고 중단합니다. 테스트·정책·고정 정답을 수정해 `OK`로 만들지 않습니다. |
+| 환경 확인은 정상이지만 assertion 등 테스트 실패가 남음 | 테스트 이름·traceback·Python 버전을 수업 담당자에게 전달합니다. 혼자 실습하면 비밀·개인 정보를 제거한 오류로 [저장소 이슈](https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8/issues)를 확인하거나 보고하고 중단합니다. 테스트·정책·고정 정답을 수정해 `OK`로 만들지 않습니다. |
 
 **터미널 — 누락·불일치 의존성이 확인된 경우에만:**
 

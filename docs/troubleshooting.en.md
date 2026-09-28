@@ -214,7 +214,7 @@ python -m pip check
 | Missing `activate` file | Return to your original install path: [participant 1-2](../README.md#python-setup), [new environment 1-6](environment.en.md#setup-python), or [existing-environment Python setup](instructor.en.md#existing-python). Create only a missing virtual environment; preserve the source and run records. |
 | Wrong Python version or environment path | Check the current folder and [Python 3.13 installation](instructor.en.md#tools). Do not use another folder's Python or delete the existing environment as a workaround. |
 | The original error is `ModuleNotFoundError`, or `pip check` reports conflicting dependencies | Use the pinned-dependency repair below only after the Python version and paths match. |
-| Environment checks pass, but an assertion or other test failure remains | Give the test name, traceback, and Python version to the instructor. For self-study, remove secrets/personal information, check or report a [repository issue](https://github.com/junwoojeong100/foundry-evaluation/issues), and stop. Do not edit tests, policies, or fixed references to get `OK`. |
+| Environment checks pass, but an assertion or other test failure remains | Give the test name, traceback, and Python version to the instructor. For self-study, remove secrets/personal information, check or report a [repository issue](https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8/issues), and stop. Do not edit tests, policies, or fixed references to get `OK`. |
 
 **Terminal — only for confirmed missing or conflicting dependencies:**
 

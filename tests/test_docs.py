@@ -168,6 +168,39 @@ class DocumentationTests(unittest.TestCase):
                             f"Missing anchor in {destination.name}",
                         )
 
+    def test_repository_links_do_not_depend_on_the_old_name_redirect(self):
+        old_repository = re.compile(
+            r"https://github\.com/junwoojeong100/foundry-evaluation(?:\.git)?(?=[/\s)#?]|$)",
+        )
+        for path, text in self.documents.items():
+            with self.subTest(document=path.name):
+                self.assertIsNone(
+                    old_repository.search(text), "Use the current URL instead of GitHub's rename redirect.",
+                )
+
+    def test_clone_examples_use_the_current_url_and_explicit_matching_directories(self):
+        repository = "https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8.git"
+        checked = 0
+        for path, text in self.documents.items():
+            lines = [
+                line.strip()
+                for language, _, body in blocks(text) if language == "bash"
+                for line in body.splitlines() if line.strip()
+            ]
+            for index, line in enumerate(lines):
+                if not line.startswith("git clone "):
+                    continue
+                with self.subTest(document=path.name, command=line):
+                    arguments = shlex.split(line)
+                    if arguments[-1] == "&&":
+                        arguments.pop()
+                    self.assertEqual(len(arguments), 4, "Specify the clone destination explicitly.")
+                    self.assertEqual(arguments[:3], ["git", "clone", repository])
+                    self.assertLess(index + 1, len(lines))
+                    self.assertEqual(shlex.split(lines[index + 1])[:2], ["cd", arguments[3]])
+                    checked += 1
+        self.assertGreater(checked, 0, "No clone examples were checked.")
+
     def test_fences_and_details_are_balanced(self):
         for path, text in self.documents.items():
             with self.subTest(document=path.name):

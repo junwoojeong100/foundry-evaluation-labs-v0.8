@@ -20,7 +20,7 @@
 이미 이 저장소가 있으면 `README.md`가 있는 폴더에서 터미널을 열고 clone을 건너뜁니다. 없다면 GitHub의 **Code → Download ZIP**으로 내려받아 압축을 풀고 그 폴더에서 터미널을 열거나 다음을 실행합니다.
 
 ```bash
-git clone https://github.com/junwoojeong100/foundry-evaluation.git
+git clone https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8.git foundry-evaluation
 ```
 
 **완료 확인:** Git이 오류 없이 끝납니다. 이어서 내려받은 폴더로 이동합니다.

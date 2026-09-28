@@ -76,7 +76,7 @@ Sweden Central에 소유권 태그가 있는 전용 환경 두 개를 가이드�
 
 로컬 증거는 `.workshop/en-20260926-live/`와 `.workshop/ko-20260926-live/`에 있습니다. 원본 소스 manifest·수정 이력, 준비·명령 로그, 응답·평가·trace, 시도별 아카이브, `workshop-report.txt`를 보존했습니다. 이 비공개 산출물은 Git에서 제외되며 공개 저장소에는 넣지 않습니다.
 
-기준 commit의 자격 증명 없는 [검증 워크플로](https://github.com/junwoojeong100/foundry-evaluation/actions/runs/36237697845)는 통과했습니다. 새 복구 변경은 로컬 오프라인 검사를 통과했으며, 아직 push하지 않은 변경이 GitHub Actions에서 실행됐다고 주장하지 않습니다.
+기준 commit의 자격 증명 없는 [검증 워크플로](https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8/actions/runs/36237697845)는 통과했습니다. 새 복구 변경은 로컬 오프라인 검사를 통과했으며, 아직 push하지 않은 변경이 GitHub Actions에서 실행됐다고 주장하지 않습니다.
 
 정리 계획과 그대로인 소유권 기록을 대조했습니다. **집단마다** `check-cleanup`으로 에이전트 부재와 **후보 배포 3개, Search 객체 3개, 임시 역할 3개, 일정 1개, 사용자 지정 평가기 3개, 생성·산출물 데이터셋 3개**의 삭제를 확인했습니다. Foundry·Search·Application Insights·보조 모델·로컬 증거는 보존했습니다. 이번 리허설의 매시간 일정은 더 이상 남아 있지 않습니다.
 

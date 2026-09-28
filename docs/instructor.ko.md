@@ -137,7 +137,7 @@ azd ai agent --help
 
 위의 `azd version`, `azd extension list`, `azd ai agent --help` 출력과 오류를 보관한다. 수업 참가자는 강사에게 전달하고, 강사는 **리허설에 성공한 azd와 두 확장의 버전 출력**과 대조해 다른 도구만 공식 설치 안내로 복구한다. 리허설할 때 이 버전을 기록해 조별 전달 자료에 포함한다.
 
-혼자 실습한다면 먼저 [위 버전 비교 기준](#tested-toolchain)과 설치된 버전을 대조한다. 명령이 없으면 [공식 azd 설치 안내](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd)로 해당 도구를 복구하고, 계속 없으면 위 출력으로 [저장소 이슈](https://github.com/junwoojeong100/foundry-evaluation/issues)를 확인하거나 보고한다. 기록된 조합과 다르다는 이유만으로 정상 도구를 바꾸거나 버전을 추측하지 않는다.
+혼자 실습한다면 먼저 [위 버전 비교 기준](#tested-toolchain)과 설치된 버전을 대조한다. 명령이 없으면 [공식 azd 설치 안내](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd)로 해당 도구를 복구하고, 계속 없으면 위 출력으로 [저장소 이슈](https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8/issues)를 확인하거나 보고한다. 기록된 조합과 다르다는 이유만으로 정상 도구를 바꾸거나 버전을 추측하지 않는다.
 
 **완료 확인:** 같은 터미널의 `azd extension list`에 설치된 `microsoft.foundry`가 있고 `azd ai agent --help`에 `run`·`invoke`가 모두 있다.
 
@@ -286,7 +286,7 @@ bash
 **실행 전:** `foundry-evaluation-model-prep-ko`가 이미 있으면 블록의 두 폴더 이름을 같은 미사용 이름으로 바꾼다. 기존 폴더는 지우지 않는다.
 
 ```bash
-git clone https://github.com/junwoojeong100/foundry-evaluation.git foundry-evaluation-model-prep-ko &&
+git clone https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8.git foundry-evaluation-model-prep-ko &&
 cd foundry-evaluation-model-prep-ko
 ```
 
@@ -576,7 +576,7 @@ preflight·calibration·평가·trace 조회가 Application Insights `ResourceId
 **실행 전:** `foundry-evaluation-rehearsal-ko`가 이미 있으면 블록의 두 폴더 이름을 같은 미사용 이름으로 바꾼다. 기존 폴더는 지우지 않는다.
 
 ```bash
-git clone https://github.com/junwoojeong100/foundry-evaluation.git foundry-evaluation-rehearsal-ko &&
+git clone https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8.git foundry-evaluation-rehearsal-ko &&
 cd foundry-evaluation-rehearsal-ko
 ```
 

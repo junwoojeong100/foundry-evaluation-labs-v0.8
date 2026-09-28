@@ -64,7 +64,7 @@ bash
 **Terminal — parent folder for a new clone:**
 
 ```bash
-git clone https://github.com/junwoojeong100/foundry-evaluation.git foundry-evaluation-setup-en &&
+git clone https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8.git foundry-evaluation-setup-en &&
 cd foundry-evaluation-setup-en &&
 ls README.md &&
 pwd

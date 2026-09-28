@@ -56,6 +56,14 @@ This is **not** the paid cloud release workflow. [`ci/release-gate.yml`](../ci/r
 
 The lesson's deliberate regression does not make default CI fail: its test asserts that the optional gate returns **1 for the right reason**.
 
+## Repository renames and local folder moves
+
+Update the repository's GitHub URLs in both guide editions rather than relying on redirects, which stop if the old name is reused. Keep every explicit clone destination consistent with the following `cd`. The local folder names, `azure.yaml` project name, Azure resource names, and ownership tags are not GitHub repository URLs; do not rename them with a blanket replacement.
+
+A GitHub rename alone does not move local files. If you also move the local workshop folder, its virtual environment is not portable. Stop any local agent, preserve the old environment while recreating it at the final path with that workspace's `requirements.lock.txt`, and verify activation and offline tests before discarding the backup. For existing `.workshop/<run>/config.json` files, update only `workspace` to that run's new absolute `workshop` path. Preserve `.env`, Azure identifiers, ownership records, source manifests, and past results.
+
+If you rename or transfer the **CI-enabled copy**, retrieve its current subject prefix using [the CI identity setup](level-3.en.md#ci-setup) and compare the full subject with its Azure federated credential. Have the identity owner update the credential only if they differ. Renaming the upstream workshop does not by itself change a separate fork's identity.
+
 <a id="upgrades"></a>
 
 ## SDK, API, evaluator, and model upgrades

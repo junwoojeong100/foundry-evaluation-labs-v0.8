@@ -172,7 +172,7 @@ bash
 **Terminal A — clone into a new folder:** if you already have an **unused clone or extracted ZIP**, skip this block; `cd` into its root and run `ls README.md && pwd` instead.
 
 ```bash
-git clone https://github.com/junwoojeong100/foundry-evaluation.git foundry-evaluation-en &&
+git clone https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8.git foundry-evaluation-en &&
 cd foundry-evaluation-en &&
 ls README.md &&
 pwd

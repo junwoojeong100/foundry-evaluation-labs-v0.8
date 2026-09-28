@@ -64,7 +64,7 @@ bash
 **터미널 — 새 clone을 만들 상위 폴더에서:**
 
 ```bash
-git clone https://github.com/junwoojeong100/foundry-evaluation.git foundry-evaluation-setup-ko &&
+git clone https://github.com/junwoojeong100/foundry-evaluation-labs-v0.8.git foundry-evaluation-setup-ko &&
 cd foundry-evaluation-setup-ko &&
 ls README.ko.md &&
 pwd
